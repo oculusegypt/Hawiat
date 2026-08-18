@@ -9,7 +9,7 @@ import { ServiceRequestModal } from '@/components/home/ServiceRequestModal';
 import { MarketingBadge } from '@/components/layout/MarketingBadge';
 import { FloatingContactButtons } from '@/components/layout/FloatingContactButtons';
 import { ScrollToTop } from "@/components/common/ScrollToTop";
-import { getVisitorTracking } from "@/lib/visitorAttribution";
+import { getVisitorTracking, sendVisitorHeartbeat } from "@/lib/visitorAttribution";
 import { setAuthTokenGetter } from '@workspace/api-client-react';
 
 // Configure the generated API client to attach the admin token to every request
@@ -53,6 +53,7 @@ function AnonymousAnalyticsTracker() {
   const [location] = useLocation();
 
   useEffect(() => {
+    const isAdmin = location.startsWith("/admin");
     try {
       const tracking = getVisitorTracking();
       fetch(`${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/track`, {
@@ -61,6 +62,15 @@ function AnonymousAnalyticsTracker() {
         body: JSON.stringify({ page: location, ...tracking }),
       }).catch(() => {});
     } catch {}
+
+    // Hostinger has no Node/WebSocket process. Keep customer presence alive
+    // through the PHP heartbeat instead of relying on a realtime connection.
+    if (isAdmin) return;
+    void sendVisitorHeartbeat();
+    const timer = window.setInterval(() => {
+      void sendVisitorHeartbeat();
+    }, 30000);
+    return () => window.clearInterval(timer);
   }, [location]);
 
   return null;

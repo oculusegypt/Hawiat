@@ -20,6 +20,10 @@ router.get("/admin/sidebar-counts", requireAdmin, requireNonDriver, async (_req,
     })
     .from(conversationsTable)
     .where(eq(conversationsTable.status, "open"));
+  const [openConversationCount] = await db
+    .select({ count: count() })
+    .from(conversationsTable)
+    .where(eq(conversationsTable.status, "open"));
   const [pendingRequestCount] = await db
     .select({ count: count() })
     .from(serviceRequestsTable)
@@ -27,6 +31,8 @@ router.get("/admin/sidebar-counts", requireAdmin, requireNonDriver, async (_req,
 
   return res.json({
     unreadConversations: Number(conversationCount?.count ?? 0),
+    unreadMessages: Number(conversationCount?.count ?? 0),
+    openConversations: Number(openConversationCount?.count ?? 0),
     pendingRequests: Number(pendingRequestCount?.count ?? 0),
   });
 });

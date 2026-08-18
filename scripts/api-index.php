@@ -182,6 +182,12 @@ try {
         return null;
     }
 
+    function isRecentIso(?string $value, int $windowSeconds): bool {
+        if (!$value) return false;
+        $timestamp = strtotime($value);
+        return $timestamp !== false && (time() - $timestamp) <= $windowSeconds;
+    }
+
     function formatUser(array $admin): array {
         $role = $admin['role'] ?? 'admin';
         $permissions = [];
@@ -1004,7 +1010,7 @@ try {
             $openConv = 0;
             try {
                 $totalConv = (int)$pdo->query("SELECT COUNT(*) FROM conversations")->fetchColumn();
-                $openConv = (int)$pdo->query("SELECT COUNT(*) FROM conversations WHERE status = 'open'")->fetchColumn();
+                $openConv = (int)$pdo->query("SELECT COUNT(*) FROM conversations WHERE status IN ('open', 'active')")->fetchColumn();
             } catch (\Exception $e) {}
 
             $unreadNotif = 0;
@@ -1115,6 +1121,30 @@ try {
                 'statusDistribution' => [], 'recentRequests' => [], 'recentNotifications' => []
             ], JSON_UNESCAPED_UNICODE);
         }
+        exit;
+    }
+
+    // 10e2. Sidebar badges: unread messages, pending requests, notifications.
+    // Keep this endpoint PHP/SQLite-only so the admin shell works on Hostinger.
+    if ($path === '/admin/sidebar-counts' && $method === 'GET') {
+        $pendingRequests = (int)$pdo->query("SELECT COUNT(*) FROM service_requests WHERE status = 'pending'")->fetchColumn();
+        $openConversations = (int)$pdo->query("SELECT COUNT(*) FROM conversations WHERE status NOT IN ('closed', 'cancelled')")->fetchColumn();
+        $unreadMessages = 0;
+        try {
+            $unreadMessages = (int)$pdo->query("SELECT COUNT(*) FROM messages WHERE sender_type = 'client' AND COALESCE(is_read, 'false') != 'true'")->fetchColumn();
+        } catch (\Exception $e) {
+            $unreadMessages = (int)$pdo->query("SELECT COALESCE(SUM(unread_count), 0) FROM conversations WHERE status NOT IN ('closed', 'cancelled')")->fetchColumn();
+        }
+        $unreadConversations = (int)$pdo->query("SELECT COUNT(*) FROM conversations WHERE status NOT IN ('closed', 'cancelled') AND unread_count > 0")->fetchColumn();
+        $unreadNotifications = (int)$pdo->query("SELECT COUNT(*) FROM notifications WHERE is_read = 0")->fetchColumn();
+        echo json_encode([
+            'pendingRequests' => $pendingRequests,
+            'openConversations' => $openConversations,
+            'unreadMessages' => $unreadMessages,
+            'unreadConversations' => $unreadMessages,
+            'unreadConversationCount' => $unreadConversations,
+            'unreadNotifications' => $unreadNotifications,
+        ], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -2732,6 +2762,58 @@ try {
         exit;
     }
 
+    // 27b. Customer presence heartbeat: POST /api/visitor/heartbeat
+    // This is the Hostinger-compatible replacement for Node/WebSocket presence.
+    if ($path === '/visitor/heartbeat' && $method === 'POST') {
+        $sessionId = substr(trim((string)($input['sessionId'] ?? '')), 0, 160);
+        if ($sessionId === '') {
+            http_response_code(400);
+            echo json_encode(['error' => 'sessionId required'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $conversationId = $input['conversationId'] ?? null;
+        if ($conversationId === '' || $conversationId === null) {
+            $conversationId = null;
+        } else {
+            $conversationId = filter_var($conversationId, FILTER_VALIDATE_INT);
+            if (!$conversationId || $conversationId <= 0) {
+                http_response_code(400);
+                echo json_encode(['error' => 'conversationId invalid'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+        }
+
+        $page = substr((string)($input['page'] ?? '/'), 0, 500) ?: '/';
+        $deviceType = in_array($input['deviceType'] ?? '', ['mobile', 'tablet'], true) ? $input['deviceType'] : 'desktop';
+        $clientName = isset($input['clientName']) ? substr(trim((string)$input['clientName']), 0, 160) : null;
+        $phone = isset($input['phone']) ? substr(trim((string)$input['phone']), 0, 40) : null;
+        $lastSeen = date('c');
+
+        $stmt = $pdo->prepare(
+            "INSERT INTO active_visitors (session_id, page, device_type, conversation_id, client_name, phone, last_seen)
+             VALUES (:sid, :page, :device, :cid, :name, :phone, :seen)
+             ON CONFLICT(session_id) DO UPDATE SET
+               page = excluded.page,
+               device_type = excluded.device_type,
+               conversation_id = excluded.conversation_id,
+               client_name = excluded.client_name,
+               phone = excluded.phone,
+               last_seen = excluded.last_seen"
+        );
+        $stmt->execute([
+            ':sid' => $sessionId,
+            ':page' => $page,
+            ':device' => $deviceType,
+            ':cid' => $conversationId,
+            ':name' => $clientName ?: null,
+            ':phone' => $phone ?: null,
+            ':seen' => $lastSeen,
+        ]);
+        echo json_encode(['ok' => true, 'lastSeen' => $lastSeen], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     // ── 28. ADMIN ANALYTICS: GET /api/admin/analytics ──
     if ($path === '/admin/analytics' && $method === 'GET') {
         try {
@@ -3280,9 +3362,14 @@ try {
     // ── 34. CONVERSATIONS: /api/conversations ──
     if ($path === '/conversations' && $method === 'GET') {
         try {
+            $staleCutoff = date('c', time() - 300);
+            $pdo->prepare("DELETE FROM active_visitors WHERE last_seen < :cutoff")->execute([':cutoff' => $staleCutoff]);
             $stmt = $pdo->query("SELECT * FROM conversations ORDER BY updated_at DESC, id DESC");
             $rows = $stmt->fetchAll();
-            $formatted = array_map(function($c) {
+            $formatted = array_map(function($c) use ($pdo) {
+                $visitorStmt = $pdo->prepare("SELECT page, last_seen FROM active_visitors WHERE conversation_id = :id ORDER BY last_seen DESC LIMIT 1");
+                $visitorStmt->execute([':id' => (int)$c['id']]);
+                $visitor = $visitorStmt->fetch() ?: null;
                 return [
                     'id' => (int)$c['id'],
                     'clientName' => $c['client_name'] ?? '',
@@ -3294,6 +3381,10 @@ try {
                     'status' => $c['status'] ?? 'active',
                     'lastMessage' => $c['last_message'] ?? '',
                     'unreadCount' => (int)($c['unread_count'] ?? 0),
+                    'isOnline' => isRecentIso($visitor['last_seen'] ?? null, 90),
+                    'activePage' => $visitor['page'] ?? null,
+                    'isClientTyping' => isRecentIso($c['client_typing_at'] ?? null, 7),
+                    'isAdminTyping' => isRecentIso($c['admin_typing_at'] ?? null, 7),
                     'createdAt' => $c['created_at'] ?? date('c'),
                     'updatedAt' => $c['updated_at'] ?? date('c')
                 ];
@@ -3319,6 +3410,22 @@ try {
                 ':now' => $now
             ]);
             $newId = (int)$pdo->lastInsertId();
+            $notifStmt = $pdo->prepare("INSERT INTO notifications (title, message, type, is_read, ref_id, ref_type, created_at) VALUES (:title, :msg, 'chat', 0, :ref_id, 'conversation', :now)");
+            $notifStmt->execute([
+                ':title' => 'محادثة جديدة',
+                ':msg' => 'بدأ ' . ($input['clientName'] ?? 'عميل') . ' محادثة جديدة',
+                ':ref_id' => $newId,
+                ':now' => $now,
+            ]);
+            dispatchPushToAllAdmins($pdo, [
+                'id' => (int)$pdo->lastInsertId(),
+                'title' => 'محادثة جديدة',
+                'message' => 'بدأ ' . ($input['clientName'] ?? 'عميل') . ' محادثة جديدة',
+                'type' => 'chat',
+                'refId' => $newId,
+                'refType' => 'conversation',
+                'createdAt' => $now,
+            ]);
             http_response_code(201);
             echo json_encode(['id' => $newId, 'clientName' => $input['clientName'] ?? 'عميل', 'success' => true]);
         } catch (\Exception $e) {
@@ -3328,12 +3435,60 @@ try {
         exit;
     }
 
+    // Customer-side unread messages polling. This replaces realtime Node events
+    // for the public chat on Hostinger.
+    if ($path === '/visitor/unread-messages' && $method === 'GET') {
+        $conversationId = isset($_GET['conversationId']) ? (int)$_GET['conversationId'] : 0;
+        $phone = trim((string)($_GET['phone'] ?? ''));
+        $conversation = null;
+        if ($conversationId > 0) {
+            $stmt = $pdo->prepare("SELECT id FROM conversations WHERE id = :id LIMIT 1");
+            $stmt->execute([':id' => $conversationId]);
+            $conversation = $stmt->fetch() ?: null;
+        } elseif ($phone !== '') {
+            $stmt = $pdo->prepare("SELECT id FROM conversations WHERE phone = :phone ORDER BY updated_at DESC LIMIT 1");
+            $stmt->execute([':phone' => $phone]);
+            $conversation = $stmt->fetch() ?: null;
+        }
+
+        if (!$conversation) {
+            echo json_encode(['conversationId' => $conversationId ?: null, 'unreadCount' => 0, 'messages' => []], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
+        $id = (int)$conversation['id'];
+        $stmt = $pdo->prepare("SELECT * FROM messages WHERE conversation_id = :id AND sender_type = 'admin' AND COALESCE(is_read, 'false') != 'true' ORDER BY created_at ASC, id ASC");
+        $stmt->execute([':id' => $id]);
+        $messages = $stmt->fetchAll();
+        $formatted = array_map(function($msg) {
+            return [
+                'id' => (int)$msg['id'],
+                'conversationId' => (int)$msg['conversation_id'],
+                'senderType' => $msg['sender_type'] ?? 'admin',
+                'content' => $msg['content'] ?? '',
+                'messageType' => $msg['message_type'] ?? 'text',
+                'metadata' => $msg['metadata'] ?? null,
+                'isRead' => false,
+                'createdAt' => $msg['created_at'] ?? date('c'),
+            ];
+        }, $messages);
+        if ($messages) {
+            $pdo->prepare("UPDATE messages SET is_read = 'true' WHERE conversation_id = :id AND sender_type = 'admin' AND COALESCE(is_read, 'false') != 'true'")
+                ->execute([':id' => $id]);
+        }
+        echo json_encode(['conversationId' => $id, 'unreadCount' => count($formatted), 'messages' => $formatted], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     if (preg_match('#^/conversations/(\d+)$#', $path, $m) && $method === 'GET') {
         $id = (int)$m[1];
         $stmt = $pdo->prepare("SELECT * FROM conversations WHERE id = :id LIMIT 1");
         $stmt->execute([':id' => $id]);
         $c = $stmt->fetch();
         if ($c) {
+            $visitorStmt = $pdo->prepare("SELECT page, last_seen FROM active_visitors WHERE conversation_id = :id ORDER BY last_seen DESC LIMIT 1");
+            $visitorStmt->execute([':id' => $id]);
+            $visitor = $visitorStmt->fetch() ?: null;
             echo json_encode([
                 'id' => (int)$c['id'],
                 'clientName' => $c['client_name'] ?? '',
@@ -3345,6 +3500,10 @@ try {
                 'status' => $c['status'] ?? 'active',
                 'lastMessage' => $c['last_message'] ?? '',
                 'unreadCount' => (int)($c['unread_count'] ?? 0),
+                'isOnline' => isRecentIso($visitor['last_seen'] ?? null, 90),
+                'activePage' => $visitor['page'] ?? null,
+                'isClientTyping' => isRecentIso($c['client_typing_at'] ?? null, 7),
+                'isAdminTyping' => isRecentIso($c['admin_typing_at'] ?? null, 7),
                 'createdAt' => $c['created_at'] ?? date('c'),
                 'updatedAt' => $c['updated_at'] ?? date('c')
             ], JSON_UNESCAPED_UNICODE);
@@ -3352,6 +3511,31 @@ try {
             http_response_code(404);
             echo json_encode(['error' => 'المحادثة غير موجودة']);
         }
+        exit;
+    }
+
+    if (preg_match('#^/conversations/(\d+)/typing$#', $path, $m) && $method === 'POST') {
+        $id = (int)$m[1];
+        $senderType = $input['senderType'] ?? '';
+        if (!in_array($senderType, ['client', 'admin'], true)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'نوع المرسل غير صحيح'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        $field = $senderType === 'client' ? 'client_typing_at' : 'admin_typing_at';
+        $value = ($input['isTyping'] ?? true) === false ? null : date('c');
+        $stmt = $pdo->prepare("UPDATE conversations SET {$field} = :value WHERE id = :id");
+        $stmt->execute([':value' => $value, ':id' => $id]);
+        echo json_encode(['ok' => true, 'isTyping' => $value !== null]);
+        exit;
+    }
+
+    if (preg_match('#^/conversations/(\d+)/read$#', $path, $m) && $method === 'POST') {
+        $id = (int)$m[1];
+        $stmt = $pdo->prepare("UPDATE messages SET is_read = 'true' WHERE conversation_id = :id AND sender_type = 'client'");
+        $stmt->execute([':id' => $id]);
+        $pdo->prepare("UPDATE conversations SET unread_count = 0 WHERE id = :id")->execute([':id' => $id]);
+        echo json_encode(['success' => true, 'conversationId' => $id]);
         exit;
     }
 
@@ -3373,8 +3557,6 @@ try {
                     'createdAt' => $msg['created_at'] ?? date('c')
                 ];
             }, $msgs);
-            // Mark read
-            $pdo->prepare("UPDATE conversations SET unread_count = 0 WHERE id = :id")->execute([':id' => $id]);
             echo json_encode($formatted, JSON_UNESCAPED_UNICODE);
         } catch (\Exception $e) {
             echo json_encode([], JSON_UNESCAPED_UNICODE);
@@ -3391,18 +3573,40 @@ try {
         $now = date('c');
 
         try {
-            $stmt = $pdo->prepare("INSERT INTO messages (conversation_id, sender_type, content, message_type, metadata, is_read, created_at) VALUES (:cid, :stype, :content, :mtype, :meta, 'false', :now)");
+            $isClientMessage = $senderType === 'client';
+            $stmt = $pdo->prepare("INSERT INTO messages (conversation_id, sender_type, content, message_type, metadata, is_read, created_at) VALUES (:cid, :stype, :content, :mtype, :meta, :is_read, :now)");
             $stmt->execute([
                 ':cid' => $convId,
                 ':stype' => $senderType,
                 ':content' => $content,
                 ':mtype' => $messageType,
                 ':meta' => $metadata,
+                ':is_read' => 'false',
                 ':now' => $now
             ]);
             $newMsgId = (int)$pdo->lastInsertId();
-            $pdo->prepare("UPDATE conversations SET last_message = :lm, updated_at = :now, unread_count = unread_count + 1 WHERE id = :id")
-                ->execute([':lm' => $content, ':now' => $now, ':id' => $convId]);
+            $pdo->prepare("UPDATE conversations SET last_message = :lm, updated_at = :now, unread_count = unread_count + :inc WHERE id = :id")
+                ->execute([':lm' => $content, ':now' => $now, ':inc' => $isClientMessage ? 1 : 0, ':id' => $convId]);
+
+            if ($isClientMessage) {
+                $notifTitle = 'رسالة جديدة من العميل';
+                $notifStmt = $pdo->prepare("INSERT INTO notifications (title, message, type, is_read, ref_id, ref_type, created_at) VALUES (:title, :msg, 'chat', 0, :ref_id, 'conversation', :now)");
+                $notifStmt->execute([
+                    ':title' => $notifTitle,
+                    ':msg' => mb_substr((string)$content, 0, 180),
+                    ':ref_id' => $convId,
+                    ':now' => $now,
+                ]);
+                dispatchPushToAllAdmins($pdo, [
+                    'id' => (int)$pdo->lastInsertId(),
+                    'title' => $notifTitle,
+                    'message' => mb_substr((string)$content, 0, 180),
+                    'type' => 'chat',
+                    'refId' => $convId,
+                    'refType' => 'conversation',
+                    'createdAt' => $now,
+                ]);
+            }
 
             echo json_encode(['id' => $newMsgId, 'success' => true]);
         } catch (\Exception $e) {

@@ -75,14 +75,15 @@ function NavItem({ href, icon: Icon, label, badge, badgeColor = "bg-rose-500", o
 
 // ── Sidebar Content ───────────────────────────────────────────────────────────
 
-function SidebarContent({ permissions = [], onNavClick, onLogout, userName, userRole, unreadConversations = 0, pendingRequests = 0 }: {
+function SidebarContent({ permissions = [], onNavClick, onLogout, userName, userRole, conversationCount = 0, pendingRequests = 0, unreadNotifications = 0 }: {
   permissions?: string[]
   onNavClick?: () => void
   onLogout: () => void
   userName: string
   userRole: string
-  unreadConversations?: number
+  conversationCount?: number
   pendingRequests?: number
+  unreadNotifications?: number
 }) {
   const { companyName, logoUrl, isLoaded } = useSiteSettings()
   const hasPerm = (sec: string) => permissions.includes(sec) || (sec === "packages" && (permissions.includes("packages") || permissions.includes("containers")));
@@ -117,8 +118,13 @@ function SidebarContent({ permissions = [], onNavClick, onLogout, userName, user
                     href={item.href}
                     icon={item.icon}
                     label={item.section === "work_orders" && userRole === "driver" ? "مهامي" : item.label}
-                    badge={item.section === "conversations" ? unreadConversations : item.section === "requests" ? pendingRequests : undefined}
-                    badgeColor={item.section === "conversations" ? "bg-rose-500" : "bg-emerald-500"}
+                    badge={
+                      item.section === "conversations" ? conversationCount :
+                      item.section === "requests" ? pendingRequests :
+                      item.section === "notifications" ? unreadNotifications :
+                      undefined
+                    }
+                    badgeColor={item.section === "requests" ? "bg-emerald-500" : "bg-rose-500"}
                     onClick={onNavClick}
                   />
                 ))}
@@ -174,8 +180,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [userRole, setUserRole] = useState("")
   const [userName, setUserName] = useState("")
   const [authLoading, setAuthLoading] = useState(true)
-  const [unreadConversations, setUnreadConversations] = useState(0)
+  const [unreadMessages, setUnreadMessages] = useState(0)
+  const [conversationCount, setConversationCount] = useState(0)
   const [pendingRequests, setPendingRequests] = useState(0)
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
   const [isSoundMuted, setIsSoundMuted] = useState(() => localStorage.getItem("admin_sound_muted") === "true")
 
   const toggleSound = () => {
@@ -243,11 +251,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         })
         if (sRes.ok) {
           const data = await sRes.json()
-          const totalUnread = Number(data.unreadConversations || 0)
+          const messages = Number(data.unreadMessages ?? data.unreadConversations ?? 0)
+          const conversations = Number(data.openConversations ?? data.unreadConversationCount ?? data.unreadConversations ?? 0)
           const pending = Number(data.pendingRequests || 0)
+          const notifications = Number(data.unreadNotifications || 0)
 
-          setUnreadConversations(totalUnread)
+          setUnreadMessages(messages)
+          setConversationCount(conversations)
           setPendingRequests(pending)
+          setUnreadNotifications(notifications)
         }
       } catch {}
     }
@@ -262,7 +274,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // with the authoritative unread count from the server.
   useEffect(() => {
     const handleNewMessage = () => {
-      setUnreadConversations(current => current + 1)
+      setUnreadMessages(current => current + 1)
     }
     window.addEventListener("admin:new-message", handleNewMessage)
     return () => window.removeEventListener("admin:new-message", handleNewMessage)
@@ -338,8 +350,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           onLogout={handleLogout}
           userName={userName}
           userRole={userRole}
-          unreadConversations={unreadConversations}
+          conversationCount={conversationCount}
           pendingRequests={pendingRequests}
+          unreadNotifications={unreadNotifications}
         />
       </aside>
 
@@ -360,8 +373,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           onLogout={handleLogout}
           userName={userName}
           userRole={userRole}
-          unreadConversations={unreadConversations}
+          conversationCount={conversationCount}
           pendingRequests={pendingRequests}
+          unreadNotifications={unreadNotifications}
         />
       </aside>
 
@@ -396,13 +410,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Link
                 href="/admin/conversations"
                 className="relative w-9 h-9 rounded-xl flex items-center justify-center border border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 transition-all cursor-pointer"
-                title={`المحادثات المباشرة${unreadConversations > 0 ? ` (${unreadConversations} غير مقروءة)` : ''}`}
+                title={`المحادثات المباشرة${unreadMessages > 0 ? ` (${unreadMessages} رسالة غير مقروءة)` : ''}`}
                 aria-label="المحادثات المباشرة"
               >
                 <MessageSquare size={17} />
-                {unreadConversations > 0 && (
+                {unreadMessages > 0 && (
                   <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm animate-pulse leading-none">
-                    {unreadConversations > 99 ? '99+' : unreadConversations}
+                    {unreadMessages > 99 ? '99+' : unreadMessages}
                   </span>
                 )}
               </Link>

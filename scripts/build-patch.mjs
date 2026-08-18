@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { createRequire } from "node:module";
 import { existsSync, rmSync, mkdirSync, copyFileSync, cpSync, statSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +8,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
 const PATCH_DIR = join(ROOT, "build_patch");
 const ZIP_OUT = join(ROOT, "hawiat-update-patch.zip");
+const require = createRequire(join(ROOT, "lib", "db", "package.json"));
+const Database = require("better-sqlite3");
 
 console.log("🚀 [Hawiat Micro Patch] تجهيز حزمة تحديث خفيفة (كود فقط بدون صور)...");
 
@@ -56,7 +59,22 @@ const dataDir = join(PATCH_DIR, "data");
 mkdirSync(dataDir, { recursive: true });
 const dbSrc = join(ROOT, "data/sabaik.db");
 if (existsSync(dbSrc)) {
+  // The dev API uses WAL, so the newest heartbeat/message writes may still be
+  // in sidecar files. Checkpoint before copying and make the patch portable
+  // for Hostinger, which runs PHP/SQLite without the WAL sidecars.
+  const sourceDb = new Database(dbSrc);
+  try {
+    sourceDb.pragma("wal_checkpoint(TRUNCATE)");
+  } finally {
+    sourceDb.close();
+  }
   copyFileSync(dbSrc, join(dataDir, "sabaik.db"));
+  const patchDb = new Database(join(dataDir, "sabaik.db"));
+  try {
+    patchDb.pragma("journal_mode=DELETE");
+  } finally {
+    patchDb.close();
+  }
   console.log("✓ تم نسخ قاعدة البيانات data/sabaik.db.");
 }
 
