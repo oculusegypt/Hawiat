@@ -3640,6 +3640,11 @@ try {
                     'content' => $msg['content'] ?? '',
                     'messageType' => $msg['message_type'] ?? 'text',
                     'metadata' => $msg['metadata'] ?? null,
+                    'attachmentUrl' => $msg['attachment_url'] ?? null,
+                    'attachmentType' => $msg['attachment_type'] ?? null,
+                    'locationLat' => $msg['location_lat'] ?? null,
+                    'locationLng' => $msg['location_lng'] ?? null,
+                    'locationLabel' => $msg['location_label'] ?? null,
                     'isRead' => $msg['is_read'] ?? 'true',
                     'createdAt' => $msg['created_at'] ?? date('c')
                 ];
@@ -3657,17 +3662,27 @@ try {
         $senderType = $input['senderType'] ?? 'client';
         $messageType = $input['messageType'] ?? 'text';
         $metadata = isset($input['metadata']) ? (is_array($input['metadata']) ? json_encode($input['metadata'], JSON_UNESCAPED_UNICODE) : (string)$input['metadata']) : null;
+        $attachmentUrl = isset($input['attachmentUrl']) && $input['attachmentUrl'] !== '' ? (string)$input['attachmentUrl'] : null;
+        $attachmentType = isset($input['attachmentType']) && $input['attachmentType'] !== '' ? (string)$input['attachmentType'] : null;
+        $locationLat = isset($input['locationLat']) && $input['locationLat'] !== '' ? (string)$input['locationLat'] : null;
+        $locationLng = isset($input['locationLng']) && $input['locationLng'] !== '' ? (string)$input['locationLng'] : null;
+        $locationLabel = isset($input['locationLabel']) && $input['locationLabel'] !== '' ? (string)$input['locationLabel'] : null;
         $now = date('c');
 
         try {
             $isClientMessage = $senderType === 'client';
-            $stmt = $pdo->prepare("INSERT INTO messages (conversation_id, sender_type, content, message_type, metadata, is_read, created_at) VALUES (:cid, :stype, :content, :mtype, :meta, :is_read, :now)");
+            $stmt = $pdo->prepare("INSERT INTO messages (conversation_id, sender_type, content, message_type, metadata, attachment_url, attachment_type, location_lat, location_lng, location_label, is_read, created_at) VALUES (:cid, :stype, :content, :mtype, :meta, :attachment_url, :attachment_type, :location_lat, :location_lng, :location_label, :is_read, :now)");
             $stmt->execute([
                 ':cid' => $convId,
                 ':stype' => $senderType,
                 ':content' => $content,
                 ':mtype' => $messageType,
                 ':meta' => $metadata,
+                ':attachment_url' => $attachmentUrl,
+                ':attachment_type' => $attachmentType,
+                ':location_lat' => $locationLat,
+                ':location_lng' => $locationLng,
+                ':location_label' => $locationLabel,
                 ':is_read' => 'false',
                 ':now' => $now
             ]);

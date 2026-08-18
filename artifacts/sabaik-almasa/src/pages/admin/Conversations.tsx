@@ -26,6 +26,75 @@ type AdminMessage = {
   locationLng?: string | null
 }
 
+function LocationMessagePreview({
+  message,
+  isAdmin,
+}: {
+  message: AdminMessage
+  isAdmin: boolean
+}) {
+  const latitude = Number(message.locationLat)
+  const longitude = Number(message.locationLng)
+  const hasCoordinates =
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180
+  const coordinates = hasCoordinates ? `${latitude},${longitude}` : ""
+  const mapHref = message.locationLabel?.startsWith("http")
+    ? message.locationLabel
+    : hasCoordinates
+      ? `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}`
+      : null
+  const embedHref = hasCoordinates
+    ? `https://www.google.com/maps?q=${encodeURIComponent(coordinates)}&output=embed`
+    : null
+
+  return (
+    <div className={`mt-2 overflow-hidden rounded-xl border ${
+      isAdmin ? "border-white/20 bg-white/10" : "border-primary/15 bg-primary/5"
+    }`}>
+      {embedHref && (
+        <iframe
+          src={embedHref}
+          title="موقع العميل على الخريطة"
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          className="h-44 w-full border-0"
+        />
+      )}
+      <div className="space-y-1.5 p-2.5">
+        <div className={`flex items-center gap-1.5 text-xs font-bold ${
+          isAdmin ? "text-white" : "text-primary"
+        }`}>
+          <MapPin size={14} />
+          موقع العميل الفعلي
+        </div>
+        {hasCoordinates && (
+          <p className={`text-[10px] ${isAdmin ? "text-white/70" : "text-gray-500"}`} dir="ltr">
+            {coordinates}
+          </p>
+        )}
+        {mapHref && (
+          <a
+            href={mapHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`inline-flex items-center gap-1 text-xs font-semibold underline ${
+              isAdmin ? "text-white" : "text-primary"
+            }`}
+          >
+            <MapPin size={13} />
+            فتح الموقع في خرائط Google
+          </a>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function normalizePhone(value: string) {
   const digits = value.replace(/\D/g, "")
   if (digits.startsWith("00966")) return `0${digits.slice(5)}`
@@ -447,19 +516,7 @@ export default function AdminConversations() {
                           </a>
                         )}
                         {(msg.locationLabel || (msg.locationLat && msg.locationLng)) && (
-                          <a
-                            href={msg.locationLabel?.startsWith("http")
-                              ? msg.locationLabel
-                              : `https://www.google.com/maps?q=${msg.locationLat},${msg.locationLng}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={`mt-2 flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold underline ${
-                              isAdmin ? "bg-white/10 text-white" : "bg-primary/5 text-primary"
-                            }`}
-                          >
-                            <MapPin size={14} />
-                            فتح الموقع المرسل
-                          </a>
+                          <LocationMessagePreview message={msg} isAdmin={isAdmin} />
                         )}
                         {msg.senderType === MessageSenderType.ai && (
                           <div className="text-[10px] text-white/50 mt-1 flex items-center gap-1">
