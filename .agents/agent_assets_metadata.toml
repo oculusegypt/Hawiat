@@ -26,5 +26,5 @@ description = "أرشيف البناء الكامل بعد إصلاح مسارا
 id = "RTo70OttJokFRCRKOlWig"
 uri = "file://hawiat-update-patch.zip"
 type = "unspecified"
-title = "حزمة إصلاح المحادثات لـHostinger"
-description = "النسخة المحدّثة تعالج مسارات /api/admin/conversations وتبقي المسارات القياسية، وتشمل PHP API وقاعدة SQLite وملفات الواجهة."
+title = "hawiat-update-patch.zip"
+description = "حزمة تحديث خفيفة بنفس بنية الحزمة السابقة، تحتوي ملفات الواجهة المحدثة وPHP API وقاعدة البيانات وملفات الإشعارات دون الصور أو مجلد uploads."
