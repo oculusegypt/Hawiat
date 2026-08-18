@@ -12,8 +12,8 @@ description = "نسخة الأرشيف المرفوع بعد استبدال مل
 id = "M455l1c0gprcp62URuZhP"
 uri = "file://sabaik-update.zip"
 type = "unspecified"
-title = "تحديث Hostinger الخفيف — من الأرشيف المرفق"
-description = "تحديث ملفات الكود والواجهة وPHP فقط من النسخة الجديدة، بدون data/ أو uploads/."
+title = "حزمة تحديث Hostinger"
+description = "حزمة التحديث الجاهزة للرفع على Hostinger — تحتوي على ملفات الواجهة وملف API فقط، وتحافظ على data وuploads دون تعديل."
 
 [[outputs]]
 id = "e7Hwi4c_9VUpSkVoGq2Ul"
