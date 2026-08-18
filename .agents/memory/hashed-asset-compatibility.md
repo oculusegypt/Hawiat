@@ -3,8 +3,8 @@ name: Hashed asset compatibility
 description: Keeping Hostinger patches compatible with stale HTML or CDN/browser caches after Vite asset hashes change.
 ---
 
-When a deployed page can retain an older Vite lazy-import URL, a lightweight compatibility alias for the reported old hashed chunk should be included in the next Hostinger patch alongside the newly hashed asset.
+When a deployed page can retain older Vite asset URLs, the next Hostinger patch must include regenerated static HTML pages plus lightweight compatibility aliases for the reported old hashed chunks.
 
-**Why:** Replacing hashed assets while an older cached `index.html` remains active can produce `ERR_ABORTED 404` for a dynamic import even though the current build is valid.
+**Why:** Replacing hashed assets while old prerendered pages or cached HTML remain active can produce `ERR_ABORTED 404` for vendor files, styles, or dynamic imports even though the current build is valid.
 
-**How to apply:** Preserve the current source and new Vite output; add only the old chunk-name alias to the patch, verify both files have identical content, and keep the patch free of unrelated asset changes.
+**How to apply:** Run prerender after Vite build, copy all generated HTML into the patch, add only the reported old chunk-name aliases, verify aliases match current chunks, and keep uploads/images untouched.

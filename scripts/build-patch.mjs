@@ -16,6 +16,8 @@ console.log("🚀 [Hawiat Micro Patch] تجهيز حزمة تحديث خفيفة
 // 1. Rebuild frontend
 console.log("▶ بناء ملفات الواجهة الأمامية المحدثة...");
 execSync("pnpm --filter @workspace/cleanflow-services run build", { cwd: ROOT, stdio: "inherit" });
+console.log("▶ إعادة توليد صفحات HTML الثابتة بنفس أصول البناء...");
+execSync("node scripts/prerender.mjs", { cwd: ROOT, stdio: "inherit" });
 
 // 2. Clean & recreate build_patch
 if (existsSync(PATCH_DIR)) rmSync(PATCH_DIR, { recursive: true, force: true });
@@ -29,13 +31,24 @@ if (existsSync(assetsSrc)) {
   cpSync(assetsSrc, assetsDst, { recursive: true });
   console.log("✓ تم نسخ ملفات JS / CSS المحدثة فقط.");
 
-  // Compatibility alias for cached HTML from the previous patch. Some
-  // browsers/CDNs can keep the old lazy-import URL after index.html changes;
-  // keep the current FAQ implementation available at that exact old URL.
-  const currentFaqAsset = readdirSync(assetsSrc).find((name) => /^FaqPage-[^/]+\.js$/.test(name));
-  if (currentFaqAsset) {
-    copyFileSync(join(assetsSrc, currentFaqAsset), join(assetsDst, "FaqPage-R3henCVg.js"));
-    console.log(`✓ تمت إضافة اسم توافق قديم لـ FAQ: ${currentFaqAsset} → FaqPage-R3henCVg.js`);
+  // Compatibility aliases for cached HTML from the previous patch. Some
+  // browsers/CDNs can keep old lazy-import URLs after index.html changes;
+  // keep the current chunks available at the exact URLs reported by Hostinger.
+  const compatibilityAliases = [
+    ["vendor-react-cjBsqQw7.js", /^vendor-react-[^/]+\.js$/],
+    ["vendor-radix-DY7cewM8.js", /^vendor-radix-[^/]+\.js$/],
+    ["vendor-leaflet-B2P7CRh1.js", /^vendor-leaflet-[^/]+\.js$/],
+    ["vendor-motion-Cd1BIfVU.js", /^vendor-motion-[^/]+\.js$/],
+    ["index-DjNEGUy7.css", /^index-[^/]+\.css$/],
+    ["index-CwjPgsoo.js", /^index-[^/]+\.js$/],
+    ["FaqPage-R3henCVg.js", /^FaqPage-[^/]+\.js$/],
+  ];
+  for (const [legacyName, currentPattern] of compatibilityAliases) {
+    const currentName = readdirSync(assetsSrc).find((name) => currentPattern.test(name));
+    if (currentName && currentName !== legacyName) {
+      copyFileSync(join(assetsSrc, currentName), join(assetsDst, legacyName));
+      console.log(`✓ اسم توافق قديم: ${currentName} → ${legacyName}`);
+    }
   }
 }
 
@@ -44,6 +57,28 @@ if (existsSync(indexSrc)) {
   copyFileSync(indexSrc, join(PATCH_DIR, "index.html"));
   console.log("✓ تم نسخ index.html.");
 }
+
+// Static SEO pages (including /faq/) must be shipped with the same HTML
+// asset references as the current Vite build. Otherwise an older page can
+// remain on Hostinger while its hashed assets have already been replaced.
+let copiedHtmlPages = 0;
+function copyHtmlPages(sourceDir, relativeDir = "") {
+  for (const entry of readdirSync(sourceDir, { withFileTypes: true })) {
+    const sourcePath = join(sourceDir, entry.name);
+    const relativePath = join(relativeDir, entry.name);
+    if (entry.isDirectory()) {
+      copyHtmlPages(sourcePath, relativePath);
+      continue;
+    }
+    if (!entry.name.endsWith(".html") || relativePath === "index.html") continue;
+    const destinationPath = join(PATCH_DIR, relativePath);
+    mkdirSync(dirname(destinationPath), { recursive: true });
+    copyFileSync(sourcePath, destinationPath);
+    copiedHtmlPages++;
+  }
+}
+copyHtmlPages(distPublic);
+console.log(`✓ تم نسخ ${copiedHtmlPages} صفحة HTML ثابتة محدثة، منها صفحة /faq/.`);
 
 // 4. Copy PHP API router and .htaccess
 const apiDir = join(PATCH_DIR, "api");
