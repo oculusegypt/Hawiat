@@ -19,8 +19,8 @@ description = "حزمة جاهزة للرفع إلى public_html، تشمل asse
 id = "e7Hwi4c_9VUpSkVoGq2Ul"
 uri = "file://cleanflow-services-hostinger.zip"
 type = "unspecified"
-title = "حزمة Hostinger الكاملة — من الأرشيف المرفق"
-description = "حزمة كاملة مبنية بعد استبدال ملفات المشروع بمحتويات uploads_1787072722525.zip، وتشمل الواجهة وPHP والبيانات والصور المستخدمة."
+title = "حزمة CleanFlow الجاهزة لـ Hostinger"
+description = "أرشيف البناء الكامل بعد إصلاح مسارات sidebar-counts وقراءة وكتابة حالة المحادثات، مع الواجهة وPHP API وقاعدة البيانات والملفات اللازمة للرفع."
 
 [[outputs]]
 id = "RTo70OttJokFRCRKOlWig"

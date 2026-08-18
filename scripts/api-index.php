@@ -3739,7 +3739,7 @@ try {
 
     if ($path === '/driver/work-orders' && $method === 'GET') {
         try {
-            $authHeader = getAuthorizationHeader();
+            $authHeader = getAuthHeader();
             $driverId = 0;
             if ($authHeader && preg_match('/Bearer\s+(\S+)/i', $authHeader, $matches)) {
                 $user = verifyToken($matches[1]);
