@@ -21,6 +21,11 @@ const typeConfig: Record<string, { label: string; icon: typeof Bell; color: stri
   container: { label: "باقة تنظيف", icon: Package, color: "bg-orange-100 text-orange-700" },
 }
 
+// Chat/message events are handled in the conversations area, not in the
+// notifications inbox. Keep service-request, system, and other notifications
+// visible here without changing the stored records or other pages.
+const MESSAGE_NOTIFICATION_TYPES = new Set(["chat", "conversation", "message", "whatsapp"])
+
 export default function AdminNotifications() {
   const [filter, setFilter] = useState<"all" | "unread" | "read">("all")
   const [deletingId, setDeletingId] = useState<number | null>(null)
@@ -36,13 +41,17 @@ export default function AdminNotifications() {
   })
   const { toast } = useToast()
 
-  const filtered = notifications.filter((n) => {
+  const visibleNotifications = notifications.filter(
+    (notification) => !MESSAGE_NOTIFICATION_TYPES.has(notification.type),
+  )
+
+  const filtered = visibleNotifications.filter((n) => {
     if (filter === "unread") return !n.isRead
     if (filter === "read") return n.isRead
     return true
   })
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length
+  const unreadCount = visibleNotifications.filter((n) => !n.isRead).length
 
   const handleMarkRead = async (id: number) => {
     try {
@@ -130,7 +139,7 @@ export default function AdminNotifications() {
               تعليم الكل كمقروء
             </Button>
           )}
-          {notifications.length > 0 && (
+          {visibleNotifications.length > 0 && (
             <Button
               variant="outline"
               size="sm"
@@ -159,7 +168,7 @@ export default function AdminNotifications() {
       {/* Filter Tabs */}
       <div className="flex gap-2">
         {[
-          { key: "all",    label: `الكل (${notifications.length})` },
+          { key: "all",    label: `الكل (${visibleNotifications.length})` },
           { key: "unread", label: `غير مقروء (${unreadCount})` },
           { key: "read",   label: "مقروء" },
         ].map((tab) => (
