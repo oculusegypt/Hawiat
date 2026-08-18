@@ -59,6 +59,8 @@ export default function AdminBlog() {
   const { companyName } = useSiteSettings()
   const [posts, setPosts]     = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState("")
+  const [totalAvailable, setTotalAvailable] = useState<number | null>(null)
   const [editing, setEditing] = useState<number | "new" | null>(null)
   const [form, setForm]       = useState<PostForm>(() => ({ ...EMPTY, author: companyName }))
   const [saving, setSaving]   = useState(false)
@@ -76,13 +78,44 @@ export default function AdminBlog() {
   const [genSeo, setGenSeo]         = useState(false)
   const [genAll, setGenAll]         = useState(false)
 
-  const load = () => {
-    fetch(`${API_BASE}/api/admin/posts`, { headers: { Authorization: `Bearer ${token()}` } })
-      .then(r => r.json())
-      .then(d => { setPosts(Array.isArray(d) ? d : []); setLoading(false) })
-      .catch(() => setLoading(false))
+  const load = async () => {
+    setLoading(true)
+    setLoadError("")
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/posts`, {
+        headers: { Authorization: `Bearer ${token()}` },
+        cache: "no-store",
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(data?.error || `تعذر تحميل المقالات (${response.status})`)
+      }
+
+      // PHP and the current Node admin route return an array. Older/API-proxy
+      // deployments may wrap the same result in { posts, total }.
+      const rows = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.posts)
+          ? data.posts
+          : Array.isArray(data?.data?.posts)
+            ? data.data.posts
+            : Array.isArray(data?.data)
+              ? data.data
+              : null
+      if (!rows) throw new Error("استجابة المقالات غير صالحة")
+
+      setPosts(rows)
+      const reportedTotal = Number(data?.total ?? data?.data?.total)
+      setTotalAvailable(Number.isFinite(reportedTotal) ? reportedTotal : rows.length)
+    } catch (error: any) {
+      setPosts([])
+      setTotalAvailable(null)
+      setLoadError(error?.message || "تعذر تحميل المقالات")
+    } finally {
+      setLoading(false)
+    }
   }
-  useEffect(load, [])
+  useEffect(() => { void load() }, [])
 
   function openNew() {
     setForm({ ...EMPTY, order: posts.length })
@@ -431,7 +464,7 @@ export default function AdminBlog() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "إجمالي المقالات",  value: posts.length,  icon: BookOpen, color: "text-primary",   bg: "bg-primary/10" },
+          { label: "إجمالي المقالات",  value: totalAvailable ?? posts.length,  icon: BookOpen, color: "text-primary",   bg: "bg-primary/10" },
           { label: "منشورة",           value: published,     icon: Globe,    color: "text-green-600", bg: "bg-green-50" },
           { label: "مسودة",            value: drafts,        icon: FileText, color: "text-amber-600", bg: "bg-amber-50" },
           { label: "إجمالي المشاهدات", value: totalViews,    icon: Eye,      color: "text-blue-600",  bg: "bg-blue-50" },
@@ -459,7 +492,16 @@ export default function AdminBlog() {
       </div>
 
       {/* Posts list */}
-      {loading ? (
+      {loadError ? (
+        <div className="text-center py-12 text-red-500 bg-white rounded-2xl border border-red-100">
+          <BookOpen size={40} className="mx-auto mb-3 opacity-40" />
+          <p className="font-semibold">تعذر تحميل المقالات</p>
+          <p className="text-sm mt-1 text-gray-500">{loadError}</p>
+          <Button variant="outline" onClick={load} className="mt-4 rounded-xl">
+            إعادة المحاولة
+          </Button>
+        </div>
+      ) : loading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 size={28} className="animate-spin text-primary" />
         </div>
