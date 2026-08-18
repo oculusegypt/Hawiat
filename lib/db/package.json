@@ -9,17 +9,23 @@
   },
   "scripts": {
     "push": "drizzle-kit push --config ./drizzle.config.ts",
-    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts"
+    "push-force": "drizzle-kit push --force --config ./drizzle.config.ts",
+    "seed": "tsx ./src/seed.ts",
+    "seed:homepage-content": "tsx ./src/seed-homepage-content.ts",
+    "seed-demo": "tsx ./src/seed-demo.ts",
+    "seed:posts": "tsx ./src/seed-posts.ts",
+    "seed:posts2": "tsx ./src/seed-posts-2.ts"
   },
   "dependencies": {
+    "better-sqlite3": "^11.10.0",
     "drizzle-orm": "catalog:",
     "drizzle-zod": "^0.8.3",
-    "pg": "^8.22.0",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "catalog:",
-    "@types/pg": "^8.20.0",
-    "drizzle-kit": "^0.31.10"
+    "drizzle-kit": "^0.31.10",
+    "tsx": "catalog:"
   }
 }

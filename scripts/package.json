@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
+    "generate-sitemap": "node ./generate-sitemap.mjs",
+    "seed-seo-articles": "node ./seed-seo-articles.mjs",
+    "seed-seo-pages": "node ./seed-seo-pages.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

@@ -1,0 +1,96 @@
+import { Router } from "express";
+import { db } from "@workspace/db";
+import { adminsTable, resolvePermissions } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import * as crypto from "crypto";
+import bcrypt from "bcryptjs";
+
+const router = Router();
+
+const TOKEN_SECRET = process.env.SESSION_SECRET ?? "sabaik_token_secret_change_me";
+
+// ── Password helpers ──────────────────────────────────────────────────────────
+export function hashPassword(password: string): string {
+  return crypto.createHash("sha256").update(password + "sabaik_salt").digest("hex");
+}
+
+export async function hashPasswordBcrypt(password: string): Promise<string> {
+  return bcrypt.hash(password, 12);
+}
+
+async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  if (stored.startsWith("$2")) return bcrypt.compare(password, stored);
+  const legacyMatch = crypto.timingSafeEqual(
+    Buffer.from(hashPassword(password), "hex"),
+    Buffer.from(stored, "hex"),
+  );
+  return legacyMatch;
+}
+
+// ── Token helpers (HMAC-signed) ───────────────────────────────────────────────
+function generateToken(adminId: number): string {
+  const payload = JSON.stringify({ adminId, ts: Date.now() });
+  const b64 = Buffer.from(payload).toString("base64url");
+  const sig = crypto.createHmac("sha256", TOKEN_SECRET).update(b64).digest("base64url");
+  return `${b64}.${sig}`;
+}
+
+export function verifyToken(token: string): { adminId: number; ts: number } | null {
+  try {
+    const [b64, sig] = token.split(".");
+    if (!b64 || !sig) return null;
+    const expected = crypto.createHmac("sha256", TOKEN_SECRET).update(b64).digest("base64url");
+    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+    return JSON.parse(Buffer.from(b64, "base64url").toString());
+  } catch {
+    return null;
+  }
+}
+
+function formatUser(admin: typeof adminsTable.$inferSelect) {
+  const permissions = resolvePermissions(admin.role, admin.permissions ?? null);
+  return {
+    id: admin.id,
+    username: admin.username,
+    name: admin.name,
+    email: admin.email ?? "",
+    role: admin.role,
+    permissions,
+  };
+}
+
+// ── POST /api/auth/login ──────────────────────────────────────────────────────
+router.post("/auth/login", async (req, res) => {
+  const { username, password } = req.body as Record<string, string>;
+  if (!username || !password) return res.status(400).json({ error: "Username and password required" });
+
+  const [admin] = await db.select().from(adminsTable).where(eq(adminsTable.username, username));
+
+  const storedHash = admin?.passwordHash ?? hashPassword("__dummy__");
+  const valid = await verifyPassword(password, storedHash);
+
+  if (!admin || !valid) return res.status(401).json({ error: "بيانات الدخول غير صحيحة" });
+  if (admin.isActive === 0) return res.status(403).json({ error: "هذا الحساب موقوف. تواصل مع المدير." });
+
+  if (!admin.passwordHash.startsWith("$2")) {
+    const newHash = await hashPasswordBcrypt(password);
+    await db.update(adminsTable).set({ passwordHash: newHash } as never).where(eq(adminsTable.id, admin.id));
+  }
+
+  return res.json({ token: generateToken(admin.id), user: formatUser(admin) });
+});
+
+// ── GET /api/auth/me ──────────────────────────────────────────────────────────
+router.get("/auth/me", async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) return res.status(401).json({ error: "Unauthorized" });
+  const payload = verifyToken(authHeader.slice(7));
+  if (!payload) return res.status(401).json({ error: "Unauthorized" });
+
+  const [admin] = await db.select().from(adminsTable).where(eq(adminsTable.id, payload.adminId));
+  if (!admin) return res.status(401).json({ error: "Unauthorized" });
+
+  return res.json(formatUser(admin));
+});
+
+export default router;
