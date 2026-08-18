@@ -26,5 +26,5 @@ description = "أرشيف البناء الكامل بعد إصلاح مسارا
 id = "RTo70OttJokFRCRKOlWig"
 uri = "file://hawiat-update-patch.zip"
 type = "unspecified"
-title = "hawiat-update-patch.zip — إصلاح أصول FAQ والصفحات الثابتة"
-description = "النسخة النهائية من Patch: تشمل صفحات HTML المولّدة مثل /faq/، الأصول الحالية، وتوافق أسماء الملفات القديمة التي كانت تسبب 404، مع API وقاعدة البيانات وملفات الإشعارات."
+title = "حزمة تحديث Hostinger النهائية"
+description = "حزمة التحديث بعد إصلاح تعارض React مع صفحات SEO الثابتة، وتشمل الأصول المحدثة، صفحات HTML المولدة، API، ملفات التوجيه، Service Worker، وقاعدة البيانات."
