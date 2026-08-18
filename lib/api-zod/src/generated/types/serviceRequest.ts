@@ -51,6 +51,11 @@ export interface ServiceRequest {
   attributionUtmMedium?: string;
   attributionUtmCampaign?: string;
   attributionGclid?: string;
+  /** @nullable */
+  conversationId?: number | null;
+  isOnline?: boolean;
+  /** @nullable */
+  activePage?: string | null;
   createdAt: string;
   updatedAt?: string;
 }

@@ -151,7 +151,7 @@ export default function AdminRequests() {
   useEffect(() => {
     if (!selectedRequest || !requests) return
     const found = requests.find(r => r.id === selectedRequest.id)
-    if (found && ((found as any).isOnline !== (selectedRequest as any).isOnline || (found as any).activePage !== (selectedRequest as any).activePage)) {
+     if (found && (found.isOnline !== selectedRequest.isOnline || found.activePage !== selectedRequest.activePage || found.conversationId !== selectedRequest.conversationId)) {
       setSelected(found)
     }
   }, [requests, selectedRequest])

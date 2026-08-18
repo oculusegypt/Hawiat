@@ -584,6 +584,9 @@ export const GetServiceRequestsResponseItem = zod.object({
   "attributionUtmMedium": zod.string().optional(),
   "attributionUtmCampaign": zod.string().optional(),
   "attributionGclid": zod.string().optional(),
+  "conversationId": zod.number().nullish(),
+  "isOnline": zod.boolean().optional(),
+  "activePage": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -663,6 +666,9 @@ export const SubmitServiceRequestResponse = zod.object({
   "attributionUtmMedium": zod.string().optional(),
   "attributionUtmCampaign": zod.string().optional(),
   "attributionGclid": zod.string().optional(),
+  "conversationId": zod.number().nullish(),
+  "isOnline": zod.boolean().optional(),
+  "activePage": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -702,6 +708,9 @@ export const GetServiceRequestResponse = zod.object({
   "attributionUtmMedium": zod.string().optional(),
   "attributionUtmCampaign": zod.string().optional(),
   "attributionGclid": zod.string().optional(),
+  "conversationId": zod.number().nullish(),
+  "isOnline": zod.boolean().optional(),
+  "activePage": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -756,6 +765,9 @@ export const UpdateServiceRequestResponse = zod.object({
   "attributionUtmMedium": zod.string().optional(),
   "attributionUtmCampaign": zod.string().optional(),
   "attributionGclid": zod.string().optional(),
+  "conversationId": zod.number().nullish(),
+  "isOnline": zod.boolean().optional(),
+  "activePage": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -810,6 +822,9 @@ export const AssignServiceRequestResponse = zod.object({
   "attributionUtmMedium": zod.string().optional(),
   "attributionUtmCampaign": zod.string().optional(),
   "attributionGclid": zod.string().optional(),
+  "conversationId": zod.number().nullish(),
+  "isOnline": zod.boolean().optional(),
+  "activePage": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -852,6 +867,9 @@ export const GetDriverWorkOrdersResponseItem = zod.object({
   "attributionUtmMedium": zod.string().optional(),
   "attributionUtmCampaign": zod.string().optional(),
   "attributionGclid": zod.string().optional(),
+  "conversationId": zod.number().nullish(),
+  "isOnline": zod.boolean().optional(),
+  "activePage": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -900,6 +918,9 @@ export const UpdateDriverWorkOrderResponse = zod.object({
   "attributionUtmMedium": zod.string().optional(),
   "attributionUtmCampaign": zod.string().optional(),
   "attributionGclid": zod.string().optional(),
+  "conversationId": zod.number().nullish(),
+  "isOnline": zod.boolean().optional(),
+  "activePage": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -938,6 +959,9 @@ export const GetAdminWorkOrdersResponseItem = zod.object({
   "attributionUtmMedium": zod.string().optional(),
   "attributionUtmCampaign": zod.string().optional(),
   "attributionGclid": zod.string().optional(),
+  "conversationId": zod.number().nullish(),
+  "isOnline": zod.boolean().optional(),
+  "activePage": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })
@@ -1006,6 +1030,9 @@ export const GetAdminStatsResponse = zod.object({
   "attributionUtmMedium": zod.string().optional(),
   "attributionUtmCampaign": zod.string().optional(),
   "attributionGclid": zod.string().optional(),
+  "conversationId": zod.number().nullish(),
+  "isOnline": zod.boolean().optional(),
+  "activePage": zod.string().nullish(),
   "createdAt": zod.string(),
   "updatedAt": zod.string().optional()
 })),

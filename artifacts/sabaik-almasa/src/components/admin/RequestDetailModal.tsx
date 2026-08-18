@@ -30,6 +30,9 @@ interface ServiceRequest {
   status: string
   adminNotes?: string | null
   acquisitionSource?: string | null
+  conversationId?: number | null
+  isOnline?: boolean
+  activePage?: string | null
   createdAt: string
   updatedAt?: string
 }
@@ -230,19 +233,19 @@ export default function RequestDetailModal({ request, open, onClose }: Props) {
               color="text-indigo-600"
               bg="bg-indigo-50"
             >
-              {(request as any).isOnline ? (
+              {request.isOnline ? (
                 <div className="flex items-center justify-between p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 mb-3 shadow-xs">
                   <div className="flex items-center gap-2.5">
                     <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping inline-block" />
                     <div>
                       <span className="text-xs font-black text-emerald-900 block">العميل متصل الآن بالموقع 🟢</span>
-                      {(request as any).activePage && (
-                        <span className="text-[11px] text-emerald-700">يتصفح حالياً: {(request as any).activePage}</span>
+                      {request.activePage && (
+                        <span className="text-[11px] text-emerald-700">يتصفح حالياً: {request.activePage}</span>
                       )}
                     </div>
                   </div>
                   <a
-                    href={`/admin/conversations?open=${(request as any).conversationId || ""}`}
+                     href={`/admin/conversations?open=${request.conversationId || ""}`}
                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
                   >
                     <MessageCircle size={14} /> محادثة فورية 🟢
@@ -268,9 +271,9 @@ export default function RequestDetailModal({ request, open, onClose }: Props) {
                     >
                       {request.phone}
                     </a>
-                    {(request as any).isOnline && (
+                    {request.isOnline && (
                       <a
-                        href={`/admin/conversations?open=${(request as any).conversationId || ""}`}
+                        href={`/admin/conversations?open=${request.conversationId || ""}`}
                         className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
                         title="مراسلة العميل المتصل الآن"
                       >

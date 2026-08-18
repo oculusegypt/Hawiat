@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, adminsTable, serviceRequestsTable, conversationsTable, messagesTable } from "@workspace/db";
+import { db, adminsTable, serviceRequestsTable, conversationsTable, messagesTable, activeVisitorsTable } from "@workspace/db";
 import { eq, desc, and, inArray, isNotNull, sql } from "drizzle-orm";
 import { getSetting } from "./settings";
 import { createNotification } from "../lib/pushNotifications";
@@ -7,6 +7,56 @@ import { requireAdmin, requireDriver, requireRequestAssignment, requireManagerOr
 import { sourceForRow } from "../lib/attribution";
 
 const router = Router();
+
+const ONLINE_WINDOW_MS = 90 * 1000;
+
+function isRecent(value: string | null | undefined, windowMs: number): boolean {
+  if (!value) return false;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) && Date.now() - timestamp <= windowMs;
+}
+
+function normalizePhone(value: string | null | undefined): string {
+  const digits = (value ?? "").replace(/\D/g, "");
+  if (digits.startsWith("00966")) return `0${digits.slice(5)}`;
+  if (digits.startsWith("966")) return `0${digits.slice(3)}`;
+  return digits;
+}
+
+async function addPresenceToRequests<T extends typeof serviceRequestsTable.$inferSelect>(requests: T[]) {
+  const visitors = await db.select().from(activeVisitorsTable);
+  const visitorBySession = new Map<string, typeof visitors[number]>();
+  const visitorByPhone = new Map<string, typeof visitors[number]>();
+
+  for (const visitor of visitors) {
+    const previousSessionVisitor = visitorBySession.get(visitor.sessionId);
+    if (!previousSessionVisitor || visitor.lastSeen > previousSessionVisitor.lastSeen) {
+      visitorBySession.set(visitor.sessionId, visitor);
+    }
+
+    const phone = normalizePhone(visitor.phone);
+    if (phone) {
+      const previousPhoneVisitor = visitorByPhone.get(phone);
+      if (!previousPhoneVisitor || visitor.lastSeen > previousPhoneVisitor.lastSeen) {
+        visitorByPhone.set(phone, visitor);
+      }
+    }
+  }
+
+  return requests.map((request) => {
+    // The session is the authoritative link. Phone matching is only a
+    // fallback for requests created before the visitor session was persisted.
+    const visitor = visitorBySession.get(request.sessionId) ??
+      visitorByPhone.get(normalizePhone(request.phone));
+
+    return {
+      ...request,
+      conversationId: visitor?.conversationId ?? null,
+      isOnline: Boolean(visitor && isRecent(visitor.lastSeen, ONLINE_WINDOW_MS)),
+      activePage: visitor?.page ?? null,
+    };
+  });
+}
 
 router.get("/service-requests", requireAdmin, async (req, res) => {
   const adminRequest = req as AdminRequest;
@@ -18,10 +68,10 @@ router.get("/service-requests", requireAdmin, async (req, res) => {
     const requests = await db.select().from(serviceRequestsTable)
       .where(eq(serviceRequestsTable.status, status as string))
       .orderBy(desc(serviceRequestsTable.createdAt));
-    return res.json(requests);
+    return res.json(await addPresenceToRequests(requests));
   }
   const requests = await db.select().from(serviceRequestsTable).orderBy(desc(serviceRequestsTable.createdAt));
-  return res.json(requests);
+  return res.json(await addPresenceToRequests(requests));
 });
 
 router.post("/service-requests", async (req, res) => {
@@ -157,7 +207,8 @@ router.get("/service-requests/:id", async (req, res) => {
   const id = parseInt(String(req.params.id), 10);
   const [request] = await db.select().from(serviceRequestsTable).where(eq(serviceRequestsTable.id, id));
   if (!request) return res.status(404).json({ error: "Not found" });
-  return res.json(request);
+  const [decoratedRequest] = await addPresenceToRequests([request]);
+  return res.json(decoratedRequest);
 });
 
 router.patch("/service-requests/:id", requireAdmin, async (req, res) => {

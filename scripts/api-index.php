@@ -847,6 +847,36 @@ try {
     // 10a. Service Requests List: GET /api/service-requests (Protected with fallback)
     if ($path === '/service-requests' && $method === 'GET') {
         try {
+            // Presence is linked to the request's visitor session. Phone is a
+            // fallback for older requests whose session id was not persisted.
+            $staleCutoff = date('c', time() - 300);
+            $pdo->prepare("DELETE FROM active_visitors WHERE last_seen < :cutoff")->execute([':cutoff' => $staleCutoff]);
+            $activeVisitors = $pdo->query("SELECT session_id, page, conversation_id, phone, last_seen FROM active_visitors")->fetchAll();
+            $visitorBySession = [];
+            $visitorByPhone = [];
+            foreach ($activeVisitors as $visitor) {
+                $sessionId = (string)($visitor['session_id'] ?? '');
+                if ($sessionId !== '' && (
+                    !isset($visitorBySession[$sessionId]) ||
+                    (string)$visitor['last_seen'] > (string)$visitorBySession[$sessionId]['last_seen']
+                )) {
+                    $visitorBySession[$sessionId] = $visitor;
+                }
+
+                $phoneDigits = preg_replace('/\D+/', '', (string)($visitor['phone'] ?? ''));
+                if (str_starts_with($phoneDigits, '00966')) {
+                    $phoneDigits = '0' . substr($phoneDigits, 5);
+                } elseif (str_starts_with($phoneDigits, '966')) {
+                    $phoneDigits = '0' . substr($phoneDigits, 3);
+                }
+                if ($phoneDigits !== '' && (
+                    !isset($visitorByPhone[$phoneDigits]) ||
+                    (string)$visitor['last_seen'] > (string)$visitorByPhone[$phoneDigits]['last_seen']
+                )) {
+                    $visitorByPhone[$phoneDigits] = $visitor;
+                }
+            }
+
             $status = $_GET['status'] ?? null;
             if ($status) {
                 $stmt = $pdo->prepare("SELECT * FROM service_requests WHERE status = :st ORDER BY created_at DESC");
@@ -855,7 +885,18 @@ try {
                 $stmt = $pdo->query("SELECT * FROM service_requests ORDER BY created_at DESC");
             }
             $rows = $stmt->fetchAll();
-            $formatted = array_map(function($r) {
+            $formatted = array_map(function($r) use ($visitorBySession, $visitorByPhone) {
+                $sessionId = (string)($r['session_id'] ?? '');
+                $visitor = $visitorBySession[$sessionId] ?? null;
+                if (!$visitor) {
+                    $phoneDigits = preg_replace('/\D+/', '', (string)($r['phone'] ?? ''));
+                    if (str_starts_with($phoneDigits, '00966')) {
+                        $phoneDigits = '0' . substr($phoneDigits, 5);
+                    } elseif (str_starts_with($phoneDigits, '966')) {
+                        $phoneDigits = '0' . substr($phoneDigits, 3);
+                    }
+                    $visitor = $visitorByPhone[$phoneDigits] ?? null;
+                }
                 return [
                     'id' => (int)$r['id'],
                     'clientName' => $r['client_name'] ?? '',
@@ -878,7 +919,10 @@ try {
                     'driverStartedAt' => $r['driver_started_at'] ?? null,
                     'driverCompletedAt' => $r['driver_completed_at'] ?? null,
                     'assignedAt' => $r['assigned_at'] ?? null,
-                    'sessionId' => $r['session_id'] ?? '',
+                    'sessionId' => $sessionId,
+                    'conversationId' => $visitor && $visitor['conversation_id'] !== null ? (int)$visitor['conversation_id'] : null,
+                    'isOnline' => $visitor ? isRecentIso($visitor['last_seen'] ?? null, 90) : false,
+                    'activePage' => $visitor['page'] ?? null,
                     'acquisitionSource' => $r['acquisition_source'] ?? 'مباشر',
                     'attributionReferrer' => $r['attribution_referrer'] ?? '',
                     'attributionLandingPage' => $r['attribution_landing_page'] ?? '',

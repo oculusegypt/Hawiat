@@ -1314,6 +1314,9 @@ components:
         attributionUtmMedium: { type: string }
         attributionUtmCampaign: { type: string }
         attributionGclid: { type: string }
+        conversationId: { type: ["integer", "null"] }
+        isOnline: { type: boolean }
+        activePage: { type: ["string", "null"] }
         createdAt: { type: string }
         updatedAt: { type: string }
 
