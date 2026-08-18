@@ -206,8 +206,12 @@ interface Notification {
 }
 
 function isMessageNotification(notification: Pick<Notification, "type" | "refType">): boolean {
+  // Conversation notifications belong to the messages icon, not the bell.
+  // Keep the legacy "message" value covered as well so older rows cannot
+  // accidentally appear in the operational notification feed.
   return notification.type === "chat"
     || notification.type === "conversation"
+    || notification.type === "message"
     || notification.refType === "conversation"
 }
 
@@ -299,7 +303,7 @@ function timeAgo(dateStr: string): string {
 
 function notifIcon(type: string) {
   if (type === "service_request") return <Package size={14} className="text-primary" />
-  if (type === "conversation" || type === "chat") return <MessageSquare size={14} className="text-blue-600" />
+  if (type === "conversation" || type === "chat" || type === "message") return <MessageSquare size={14} className="text-blue-600" />
   return <Info size={14} className="text-gray-500" />
 }
 
@@ -392,6 +396,7 @@ export function NotificationBell() {
   }, [])
 
   const bellNotifications = notifications.filter(notification => !isMessageNotification(notification))
+  const messageNotifications = notifications.filter(isMessageNotification)
   const unreadCount = bellNotifications.filter(n => !n.isRead).length
 
   const markAsRead = async (id: number) => {
@@ -499,7 +504,24 @@ export function NotificationBell() {
                 {bellNotifications.length === 0 ? (
                   <div className="text-center py-10 text-gray-400">
                     <Bell size={28} className="mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">لا توجد إشعارات</p>
+                    {messageNotifications.length > 0 ? (
+                      <>
+                        <p className="text-sm">لا توجد تنبيهات تشغيلية</p>
+                        <p className="mt-1 px-5 text-[11px] leading-5 text-gray-400">
+                          رسائل المحادثات تظهر في أيقونة الرسائل بجانب الجرس
+                        </p>
+                        <Link
+                          href="/admin/conversations"
+                          onClick={() => setIsOpen(false)}
+                          className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                        >
+                          فتح المحادثات
+                          <MessageSquare size={13} />
+                        </Link>
+                      </>
+                    ) : (
+                      <p className="text-sm">لا توجد إشعارات</p>
+                    )}
                   </div>
                 ) : (
                   bellNotifications.slice(0, 15).map((n) => (

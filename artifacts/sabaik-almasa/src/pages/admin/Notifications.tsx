@@ -12,7 +12,11 @@ const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || ""
 
 const typeConfig: Record<string, { label: string; icon: typeof Bell; color: string }> = {
   request: { label: "طلب خدمة", icon: Inbox, color: "bg-blue-100 text-blue-700" },
+  service_request: { label: "طلب خدمة", icon: Inbox, color: "bg-blue-100 text-blue-700" },
+  chat: { label: "رسالة", icon: MessageSquare, color: "bg-green-100 text-green-700" },
+  conversation: { label: "رسالة", icon: MessageSquare, color: "bg-green-100 text-green-700" },
   message: { label: "رسالة", icon: MessageSquare, color: "bg-green-100 text-green-700" },
+  whatsapp: { label: "واتساب", icon: MessageSquare, color: "bg-green-100 text-green-700" },
   system: { label: "نظام", icon: Settings, color: "bg-gray-100 text-gray-700" },
   container: { label: "باقة تنظيف", icon: Package, color: "bg-orange-100 text-orange-700" },
 }
