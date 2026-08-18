@@ -26,5 +26,5 @@ description = "أرشيف البناء الكامل بعد إصلاح مسارا
 id = "RTo70OttJokFRCRKOlWig"
 uri = "file://hawiat-update-patch.zip"
 type = "unspecified"
-title = "hawiat-update-patch.zip — الإصدار النهائي PHP فقط"
-description = "حزمة Hostinger النهائية بعد إصلاح تحميل المقالات. تعمل بملفات ثابتة وPHP 8 وSQLite فقط، بدون Node وقت التشغيل. الحجم 2.40 MB."
+title = "hawiat-update-patch.zip"
+description = "حزمة تحديث Hostinger لإصلاح صفحة الطلبات؛ تحتوي على الواجهة الثابتة وPHP وSQLite وملفات التوجيه، ولا تحتاج إلى Node على الاستضافة."

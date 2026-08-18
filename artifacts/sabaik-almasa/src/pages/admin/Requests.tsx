@@ -132,10 +132,17 @@ export default function AdminRequests() {
   const { mutate: deleteReq, isPending: deleting } = useDeleteServiceRequest()
   const { mutate: assignReq, isPending: assigning } = useAssignServiceRequest()
 
+  // Hostinger may briefly serve an older PHP response envelope while a
+  // deployment is being replaced. Keep the page usable instead of allowing a
+  // malformed payload to crash React at `.map()`.
+  const requestRows: ServiceRequest[] = Array.isArray(requests)
+    ? requests
+    : ((requests as unknown as { posts?: ServiceRequest[] } | undefined)?.posts ?? [])
+
   useEffect(() => {
     const openId = Number(new URLSearchParams(window.location.search).get("open"))
-    if (!openId || !requests) return
-    const request = requests.find(item => item.id === openId)
+    if (!openId || requestRows.length === 0) return
+    const request = requestRows.find(item => item.id === openId)
     if (request) setSelected(request)
   }, [requests])
 
@@ -149,8 +156,8 @@ export default function AdminRequests() {
 
   // Keep selectedRequest updated with live status if modal is open
   useEffect(() => {
-    if (!selectedRequest || !requests) return
-    const found = requests.find(r => r.id === selectedRequest.id)
+    if (!selectedRequest) return
+    const found = requestRows.find(r => r.id === selectedRequest.id)
      if (found && (found.isOnline !== selectedRequest.isOnline || found.activePage !== selectedRequest.activePage || found.conversationId !== selectedRequest.conversationId)) {
       setSelected(found)
     }
@@ -422,7 +429,7 @@ export default function AdminRequests() {
                 </tr>
               </thead>
               <tbody>
-                {requests?.map(req => {
+                {requestRows.map(req => {
                   const st = getStatus(req.status)
                   return (
                     <tr
@@ -547,7 +554,7 @@ export default function AdminRequests() {
                     </tr>
                   )
                 })}
-                 {(!requests || requests.length === 0) && (
+                  {requestRows.length === 0 && (
                   <tr>
                      <td colSpan={8} className="p-8 text-center text-gray-500">
                       لا توجد طلبات لعرضها

@@ -42,6 +42,7 @@ if (existsSync(assetsSrc)) {
     ["index-DjNEGUy7.css", /^index-[^/]+\.css$/],
     ["index-CwjPgsoo.js", /^index-[^/]+\.js$/],
     ["FaqPage-R3henCVg.js", /^FaqPage-[^/]+\.js$/],
+    ["Requests-C30AogZw.js", /^Requests-[^/]+\.js$/],
   ];
   for (const [legacyName, currentPattern] of compatibilityAliases) {
     const currentName = readdirSync(assetsSrc).find((name) => currentPattern.test(name));

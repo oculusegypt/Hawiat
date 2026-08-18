@@ -934,13 +934,11 @@ try {
                     'updatedAt' => $r['updated_at'] ?? date('c')
                 ];
             }, $rows);
-            // Hostinger serves the frontend statically and PHP is the only
-            // runtime API. Return a stable envelope and replace malformed
-            // legacy bytes instead of allowing json_encode() to emit nothing.
-            echo json_encode([
-                'posts' => $formatted,
-                'total' => count($formatted),
-            ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+            // The generated admin client expects this endpoint to return the
+            // request rows directly.  Returning an envelope such as
+            // { posts, total } makes the Requests screen call .map() on an
+            // object and stops the whole React page from rendering.
+            echo json_encode($formatted, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         } catch (\Exception $e) {
             echo json_encode([], JSON_UNESCAPED_UNICODE);
         }
