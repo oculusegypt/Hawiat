@@ -26,5 +26,5 @@ description = "أرشيف البناء الكامل بعد إصلاح مسارا
 id = "RTo70OttJokFRCRKOlWig"
 uri = "file://hawiat-update-patch.zip"
 type = "unspecified"
-title = "حزمة تحديث Hostinger النهائية"
-description = "حزمة التحديث بعد إصلاح تعارض React مع صفحات SEO الثابتة، وتشمل الأصول المحدثة، صفحات HTML المولدة، API، ملفات التوجيه، Service Worker، وقاعدة البيانات."
+title = "حزمة Hostinger المصححة — إصلاح DOM"
+description = "الحزمة النهائية بعد إصلاح سبب أخطاء removeChild وinsertBefore في شعارات الشركاء، مع جميع الأصول وصفحات SEO وAPI وملفات التوجيه وقاعدة البيانات."

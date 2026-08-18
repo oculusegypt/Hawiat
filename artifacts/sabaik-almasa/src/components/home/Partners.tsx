@@ -1,4 +1,26 @@
+import { useState } from "react"
 import { useGetPartners } from "@workspace/api-client-react"
+
+function PartnerLogo({ name, logoUrl }: { name: string; logoUrl: string }) {
+  const [hasError, setHasError] = useState(false)
+
+  if (hasError) {
+    return (
+      <span className="font-bold text-lg text-gray-300 border-2 border-dashed border-gray-200 p-2 rounded">
+        {name}
+      </span>
+    )
+  }
+
+  return (
+    <img
+      src={logoUrl}
+      alt={name}
+      className="max-w-full max-h-full object-contain"
+      onError={() => setHasError(true)}
+    />
+  )
+}
 
 export function Partners() {
   const { data: partners } = useGetPartners()
@@ -16,16 +38,7 @@ export function Partners() {
         <div className="animate-marquee flex whitespace-nowrap">
            {[...partners, ...partners, ...partners].map((partner, index) => (
             <div key={`${partner.id}-${index}`} className="mx-8 w-40 h-20 flex items-center justify-center grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-300">
-              <img 
-                src={partner.logoUrl} 
-                alt={partner.name} 
-                className="max-w-full max-h-full object-contain"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  const parent = e.currentTarget.parentElement;
-                  if(parent) parent.innerHTML = `<span class="font-bold text-lg text-gray-300 border-2 border-dashed border-gray-200 p-2 rounded">${partner.name}</span>`;
-                }}
-              />
+               <PartnerLogo name={partner.name} logoUrl={partner.logoUrl} />
             </div>
           ))}
         </div>
