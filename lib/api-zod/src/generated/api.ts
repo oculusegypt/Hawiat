@@ -1036,6 +1036,10 @@ export const GetConversationsResponseItem = zod.object({
   "status": zod.enum(['open', 'in_progress', 'closed']),
   "lastMessage": zod.string().nullish(),
   "unreadCount": zod.number().optional(),
+  "isOnline": zod.boolean().optional(),
+  "activePage": zod.string().nullish(),
+  "isClientTyping": zod.boolean().optional(),
+  "isAdminTyping": zod.boolean().optional(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -1065,6 +1069,10 @@ export const CreateConversationResponse = zod.object({
   "status": zod.enum(['open', 'in_progress', 'closed']),
   "lastMessage": zod.string().nullish(),
   "unreadCount": zod.number().optional(),
+  "isOnline": zod.boolean().optional(),
+  "activePage": zod.string().nullish(),
+  "isClientTyping": zod.boolean().optional(),
+  "isAdminTyping": zod.boolean().optional(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -1088,6 +1096,10 @@ export const GetConversationResponse = zod.object({
   "status": zod.enum(['open', 'in_progress', 'closed']),
   "lastMessage": zod.string().nullish(),
   "unreadCount": zod.number().optional(),
+  "isOnline": zod.boolean().optional(),
+  "activePage": zod.string().nullish(),
+  "isClientTyping": zod.boolean().optional(),
+  "isAdminTyping": zod.boolean().optional(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -1112,6 +1124,10 @@ export const UpdateConversationResponse = zod.object({
   "status": zod.enum(['open', 'in_progress', 'closed']),
   "lastMessage": zod.string().nullish(),
   "unreadCount": zod.number().optional(),
+  "isOnline": zod.boolean().optional(),
+  "activePage": zod.string().nullish(),
+  "isClientTyping": zod.boolean().optional(),
+  "isAdminTyping": zod.boolean().optional(),
   "createdAt": zod.string(),
   "updatedAt": zod.string()
 })
@@ -1169,6 +1185,26 @@ export const SendMessageResponse = zod.object({
   "metadata": zod.string().nullish(),
   "isRead": zod.boolean(),
   "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Update typing presence for a conversation participant
+ */
+export const SetConversationTypingParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const setConversationTypingBodyIsTypingDefault = true;
+
+export const SetConversationTypingBody = zod.object({
+  "senderType": zod.enum(['client', 'admin']),
+  "isTyping": zod.boolean().default(setConversationTypingBodyIsTypingDefault)
+})
+
+export const SetConversationTypingResponse = zod.object({
+  "ok": zod.boolean(),
+  "isTyping": zod.boolean()
 })
 
 

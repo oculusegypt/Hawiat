@@ -23,6 +23,11 @@ export interface Conversation {
   /** @nullable */
   lastMessage?: string | null;
   unreadCount?: number;
+  isOnline?: boolean;
+  /** @nullable */
+  activePage?: string | null;
+  isClientTyping?: boolean;
+  isAdminTyping?: boolean;
   createdAt: string;
   updatedAt: string;
 }

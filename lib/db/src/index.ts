@@ -58,6 +58,9 @@ const analyticsMigrations = [
   "ALTER TABLE page_views ADD COLUMN utm_medium TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE page_views ADD COLUMN utm_campaign TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE page_views ADD COLUMN gclid TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE active_visitors ADD COLUMN conversation_id INTEGER",
+  "ALTER TABLE active_visitors ADD COLUMN client_name TEXT",
+  "ALTER TABLE active_visitors ADD COLUMN phone TEXT",
 ];
 for (const sql of analyticsMigrations) {
   try { sqlite.exec(sql); } catch { /* column already exists — safe to ignore */ }
@@ -66,6 +69,8 @@ for (const sql of analyticsMigrations) {
 const conversationMigrations = [
   "ALTER TABLE conversations ADD COLUMN package_id INTEGER",
   "ALTER TABLE conversations ADD COLUMN package_name TEXT",
+  "ALTER TABLE conversations ADD COLUMN client_typing_at TEXT",
+  "ALTER TABLE conversations ADD COLUMN admin_typing_at TEXT",
 ];
 for (const sql of conversationMigrations) {
   try { sqlite.exec(sql); } catch { /* column already exists — safe to ignore */ }

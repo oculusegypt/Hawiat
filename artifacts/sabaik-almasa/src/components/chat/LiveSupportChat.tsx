@@ -12,7 +12,7 @@ import { useSiteSettings } from "@/context/SiteSettingsContext"
 import { useGetContainers, useGetConversation } from "@workspace/api-client-react"
 import type { Container } from "@workspace/api-client-react"
 import { PackageFormMessage } from "@/components/chat/PackageFormMessage"
-import { playNotificationChime } from "@/lib/visitorAttribution"
+import { playNotificationChime, sendVisitorHeartbeat } from "@/lib/visitorAttribution"
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || ""
 
@@ -266,16 +266,41 @@ function ChatInterface({ conversationId, clientName, phone, packageName, isSound
   const isInitialLoadRef = useRef(true)
 
   const lastClientTypingRef = useRef<number>(0)
-  const sendClientTypingPing = useCallback((id: number) => {
-    const now = Date.now()
-    if (now - lastClientTypingRef.current < 2500) return
-    lastClientTypingRef.current = now
+  const clientTypingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sendClientTypingState = useCallback((id: number, isTyping: boolean) => {
     fetch(`${API_BASE}/api/conversations/${id}/typing`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ senderType: "client", isTyping: true }),
+      body: JSON.stringify({ senderType: "client", isTyping }),
     }).catch(() => {})
   }, [])
+
+  const sendClientTypingPing = useCallback((id: number) => {
+    const now = Date.now()
+    if (now - lastClientTypingRef.current >= 2500) {
+      lastClientTypingRef.current = now
+      sendClientTypingState(id, true)
+    }
+    if (clientTypingStopTimerRef.current) clearTimeout(clientTypingStopTimerRef.current)
+    clientTypingStopTimerRef.current = setTimeout(() => {
+      sendClientTypingState(id, false)
+      clientTypingStopTimerRef.current = null
+    }, 4500)
+  }, [sendClientTypingState])
+
+  useEffect(() => {
+    const heartbeat = () => {
+      void sendVisitorHeartbeat({ conversationId, clientName, phone })
+    }
+    heartbeat()
+    const interval = setInterval(heartbeat, 15000)
+    return () => clearInterval(interval)
+  }, [conversationId, clientName, phone])
+
+  useEffect(() => () => {
+    if (clientTypingStopTimerRef.current) clearTimeout(clientTypingStopTimerRef.current)
+    sendClientTypingState(conversationId, false)
+  }, [conversationId, sendClientTypingState])
 
   const loadMessages = useCallback(async () => {
     try {
@@ -343,6 +368,8 @@ function ChatInterface({ conversationId, clientName, phone, packageName, isSound
     if (!input.trim() || sending) return
     const text = input.trim()
     setInput("")
+    if (clientTypingStopTimerRef.current) clearTimeout(clientTypingStopTimerRef.current)
+    sendClientTypingState(conversationId, false)
     setSending(true)
     try {
       await fetch(`${API_BASE}/api/conversations/${conversationId}/messages`, {

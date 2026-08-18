@@ -78,16 +78,32 @@ export default function AdminConversations() {
     : false
 
   const lastTypingSentRef = useRef<number>(0)
-  const sendTypingPing = useCallback((id: number) => {
-    const now = Date.now()
-    if (now - lastTypingSentRef.current < 2500) return
-    lastTypingSentRef.current = now
+  const typingStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sendTypingState = useCallback((id: number, isTyping: boolean) => {
     fetch(`${API_BASE}/api/conversations/${id}/typing`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ senderType: "admin", isTyping: true }),
+      body: JSON.stringify({ senderType: "admin", isTyping }),
     }).catch(() => {})
   }, [])
+
+  const sendTypingPing = useCallback((id: number) => {
+    const now = Date.now()
+    if (now - lastTypingSentRef.current >= 2500) {
+      lastTypingSentRef.current = now
+      sendTypingState(id, true)
+    }
+    if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current)
+    typingStopTimerRef.current = setTimeout(() => {
+      sendTypingState(id, false)
+      typingStopTimerRef.current = null
+    }, 4500)
+  }, [sendTypingState])
+
+  useEffect(() => () => {
+    if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current)
+    if (selectedId) sendTypingState(selectedId, false)
+  }, [selectedId, sendTypingState])
 
   // Auto poll conversations list to keep online and typing states fresh
   useEffect(() => {
@@ -143,6 +159,8 @@ export default function AdminConversations() {
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault()
     if (!reply.trim() || !selectedId) return
+    if (typingStopTimerRef.current) clearTimeout(typingStopTimerRef.current)
+    sendTypingState(selectedId, false)
     sendMsg({ id: selectedId!, data: { content: reply, senderType: MessageInputSenderType.admin } }, {
       onSuccess: () => { setReply(""); refetchMsgs(); refetchConvs() }
     })

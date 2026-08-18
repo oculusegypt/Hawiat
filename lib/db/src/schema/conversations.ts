@@ -13,6 +13,8 @@ export const conversationsTable = sqliteTable("conversations", {
   status: text("status").notNull().default("open"),
   lastMessage: text("last_message"),
   unreadCount: integer("unread_count").notNull().default(0),
+  clientTypingAt: text("client_typing_at"),
+  adminTypingAt: text("admin_typing_at"),
   createdAt: text("created_at").$defaultFn(() => new Date().toISOString()).notNull(),
   updatedAt: text("updated_at").$defaultFn(() => new Date().toISOString()).notNull(),
 });

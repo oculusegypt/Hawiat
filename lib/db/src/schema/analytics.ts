@@ -21,5 +21,8 @@ export const activeVisitorsTable = sqliteTable("active_visitors", {
   sessionId: text("session_id").primaryKey(),
   page: text("page").notNull().default("/"),
   deviceType: text("device_type").notNull().default("desktop"),
+  conversationId: integer("conversation_id"),
+  clientName: text("client_name"),
+  phone: text("phone"),
   lastSeen: text("last_seen").notNull(),
 });

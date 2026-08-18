@@ -143,6 +143,48 @@ router.post("/track", async (req, res) => {
   }
 });
 
+// Public heartbeat used by the chat and marketing surfaces. The conversation
+// link lets the admin inbox distinguish an active customer from an unrelated
+// visitor who happens to be browsing the website.
+router.post("/visitor/heartbeat", async (req, res) => {
+  try {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim().slice(0, 160) : "";
+    if (!sessionId) return res.status(400).json({ error: "sessionId required" });
+
+    const rawConversationId = body.conversationId;
+    const conversationId = rawConversationId === undefined || rawConversationId === null || rawConversationId === ""
+      ? null
+      : Number(rawConversationId);
+    if (conversationId !== null && (!Number.isInteger(conversationId) || conversationId <= 0)) {
+      return res.status(400).json({ error: "conversationId invalid" });
+    }
+
+    const page = typeof body.page === "string" ? body.page.slice(0, 500) : "/";
+    const deviceType = body.deviceType === "mobile" || body.deviceType === "tablet" ? body.deviceType : "desktop";
+    const clientName = typeof body.clientName === "string" ? body.clientName.trim().slice(0, 160) : null;
+    const phone = typeof body.phone === "string" ? body.phone.trim().slice(0, 40) : null;
+    const lastSeen = isoNow();
+
+    await db.insert(activeVisitorsTable).values({
+      sessionId,
+      page,
+      deviceType,
+      conversationId,
+      clientName,
+      phone,
+      lastSeen,
+    }).onConflictDoUpdate({
+      target: activeVisitorsTable.sessionId,
+      set: { page, deviceType, conversationId, clientName, phone, lastSeen },
+    });
+
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ error: String(e) });
+  }
+});
+
 router.get("/admin/analytics", requireAdmin, async (req, res) => {
   try {
     res.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");

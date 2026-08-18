@@ -482,6 +482,11 @@ export interface Conversation {
   /** @nullable */
   lastMessage?: string | null;
   unreadCount?: number;
+  isOnline?: boolean;
+  /** @nullable */
+  activePage?: string | null;
+  isClientTyping?: boolean;
+  isAdminTyping?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -510,6 +515,19 @@ export const ConversationUpdateStatus = {
 
 export interface ConversationUpdate {
   status?: ConversationUpdateStatus;
+}
+
+export type ConversationTypingInputSenderType = typeof ConversationTypingInputSenderType[keyof typeof ConversationTypingInputSenderType];
+
+
+export const ConversationTypingInputSenderType = {
+  client: 'client',
+  admin: 'admin',
+} as const;
+
+export interface ConversationTypingInput {
+  senderType: ConversationTypingInputSenderType;
+  isTyping?: boolean;
 }
 
 export type MessageSenderType = typeof MessageSenderType[keyof typeof MessageSenderType];
@@ -757,5 +775,10 @@ export const GetServiceRequestsStatus = {
 
 export type GetDriverWorkOrdersParams = {
 status?: DriverWorkOrderStatus;
+};
+
+export type SetConversationTyping200 = {
+  ok: boolean;
+  isTyping: boolean;
 };
 

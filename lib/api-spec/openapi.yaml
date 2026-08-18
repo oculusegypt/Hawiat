@@ -757,6 +757,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/Message"
 
+  /conversations/{id}/typing:
+    post:
+      operationId: setConversationTyping
+      tags: [chat]
+      summary: Update typing presence for a conversation participant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConversationTypingInput"
+      responses:
+        "200":
+          description: Typing state updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, isTyping]
+                properties:
+                  ok: { type: boolean }
+                  isTyping: { type: boolean }
+
   # ── AI Chatbot ────────────────────────────────────────────────────────────
   /ai/chat:
     post:
@@ -1429,6 +1457,10 @@ components:
           enum: [open, in_progress, closed]
         lastMessage: { type: ["string", "null"] }
         unreadCount: { type: integer }
+        isOnline: { type: boolean }
+        activePage: { type: ["string", "null"] }
+        isClientTyping: { type: boolean }
+        isAdminTyping: { type: boolean }
         createdAt: { type: string }
         updatedAt: { type: string }
 
@@ -1449,6 +1481,15 @@ components:
         status:
           type: string
           enum: [open, in_progress, closed]
+
+    ConversationTypingInput:
+      type: object
+      required: [senderType]
+      properties:
+        senderType:
+          type: string
+          enum: [client, admin]
+        isTyping: { type: boolean, default: true }
 
     Message:
       type: object

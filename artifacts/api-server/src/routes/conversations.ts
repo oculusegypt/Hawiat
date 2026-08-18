@@ -1,16 +1,62 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { conversationsTable, messagesTable, containersTable } from "@workspace/db";
+import { conversationsTable, messagesTable, containersTable, activeVisitorsTable } from "@workspace/db";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { createNotification } from "../lib/pushNotifications";
 import { requireAdmin, requireNonDriver } from "../middleware/adminAuth";
 
 const router = Router();
 
+const ONLINE_WINDOW_MS = 90 * 1000;
+const TYPING_WINDOW_MS = 7 * 1000;
+
+function isRecent(value: string | null | undefined, windowMs: number): boolean {
+  if (!value) return false;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) && Date.now() - timestamp <= windowMs;
+}
+
+type ActiveVisitor = typeof activeVisitorsTable.$inferSelect;
+
+function decorateConversation<T extends typeof conversationsTable.$inferSelect>(
+  conversation: T,
+  visitor?: ActiveVisitor,
+) {
+  return {
+    ...conversation,
+    isOnline: Boolean(visitor && isRecent(visitor.lastSeen, ONLINE_WINDOW_MS)),
+    activePage: visitor?.page ?? null,
+    isClientTyping: isRecent(conversation.clientTypingAt, TYPING_WINDOW_MS),
+    isAdminTyping: isRecent(conversation.adminTypingAt, TYPING_WINDOW_MS),
+  };
+}
+
+async function getConversationWithPresence(id: number) {
+  const [conversation] = await db.select().from(conversationsTable)
+    .where(eq(conversationsTable.id, id));
+  if (!conversation) return null;
+  const [visitor] = await db.select().from(activeVisitorsTable)
+    .where(eq(activeVisitorsTable.conversationId, id))
+    .orderBy(desc(activeVisitorsTable.lastSeen))
+    .limit(1);
+  return decorateConversation(conversation, visitor);
+}
+
 router.get("/conversations", requireAdmin, requireNonDriver, async (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
   const conversations = await db.select().from(conversationsTable).orderBy(desc(conversationsTable.updatedAt));
-  return res.json(conversations);
+  const visitors = await db.select().from(activeVisitorsTable);
+  const visitorByConversation = new Map<number, ActiveVisitor>();
+  for (const visitor of visitors) {
+    if (!visitor.conversationId) continue;
+    const current = visitorByConversation.get(visitor.conversationId);
+    if (!current || visitor.lastSeen > current.lastSeen) {
+      visitorByConversation.set(visitor.conversationId, visitor);
+    }
+  }
+  return res.json(conversations.map(conversation =>
+    decorateConversation(conversation, visitorByConversation.get(conversation.id)),
+  ));
 });
 
 router.post("/conversations", async (req, res) => {
@@ -37,9 +83,32 @@ router.get("/conversations/:id", async (req, res) => {
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({ error: "معرّف المحادثة غير صحيح" });
   }
-  const [conversation] = await db.select().from(conversationsTable).where(eq(conversationsTable.id, id));
+  const conversation = await getConversationWithPresence(id);
   if (!conversation) return res.status(404).json({ error: "المحادثة غير موجودة" });
   return res.json(conversation);
+});
+
+router.post("/conversations/:id/typing", async (req, res) => {
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: "معرّف المحادثة غير صحيح" });
+  }
+
+  const senderType = req.body?.senderType;
+  if (senderType !== "client" && senderType !== "admin") {
+    return res.status(400).json({ error: "نوع المرسل غير صحيح" });
+  }
+  const isTyping = req.body?.isTyping !== false;
+  const [conversation] = await db.select({ id: conversationsTable.id })
+    .from(conversationsTable)
+    .where(eq(conversationsTable.id, id));
+  if (!conversation) return res.status(404).json({ error: "المحادثة غير موجودة" });
+
+  const field = senderType === "client" ? "clientTypingAt" : "adminTypingAt";
+  await db.update(conversationsTable)
+    .set({ [field]: isTyping ? new Date().toISOString() : null })
+    .where(eq(conversationsTable.id, id));
+  return res.json({ ok: true, isTyping });
 });
 
 router.patch("/conversations/:id", requireAdmin, requireNonDriver, async (req, res) => {
@@ -147,6 +216,8 @@ router.post("/conversations/:id/messages", async (req, res) => {
       lastMessage: content,
       updatedAt: new Date().toISOString(),
       unreadCount: senderType === "client" ? sql`unread_count + 1` : sql`unread_count`,
+      clientTypingAt: senderType === "client" ? null : undefined,
+      adminTypingAt: senderType === "admin" ? null : undefined,
     })
     .where(eq(conversationsTable.id, id));
 

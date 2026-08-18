@@ -30,6 +30,7 @@ import type {
   ContainerInput,
   Conversation,
   ConversationInput,
+  ConversationTypingInput,
   ConversationUpdate,
   DashboardStats,
   DriverWorkOrderUpdate,
@@ -55,6 +56,7 @@ import type {
   ServiceRequestAssignment,
   ServiceRequestInput,
   ServiceRequestUpdate,
+  SetConversationTyping200,
   SuccessResult,
   Testimonial,
   TestimonialInput
@@ -3115,6 +3117,78 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getSendMessageMutationOptions(options));
+    }
+
+export const getSetConversationTypingUrl = (id: number,) => {
+
+
+
+
+  return `/api/conversations/${id}/typing`
+}
+
+/**
+ * @summary Update typing presence for a conversation participant
+ */
+export const setConversationTyping = async (id: number,
+    conversationTypingInput: ConversationTypingInput, options?: RequestInit): Promise<SetConversationTyping200> => {
+
+  return customFetch<SetConversationTyping200>(getSetConversationTypingUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(conversationTypingInput)
+  }
+);}
+
+
+
+
+
+export const getSetConversationTypingMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setConversationTyping>>, TError,{id: number;data: BodyType<ConversationTypingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setConversationTyping>>, TError,{id: number;data: BodyType<ConversationTypingInput>}, TContext> => {
+
+const mutationKey = ['setConversationTyping'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setConversationTyping>>, {id: number;data: BodyType<ConversationTypingInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setConversationTyping(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetConversationTypingMutationResult = NonNullable<Awaited<ReturnType<typeof setConversationTyping>>>
+    export type SetConversationTypingMutationBody = BodyType<ConversationTypingInput>
+    export type SetConversationTypingMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update typing presence for a conversation participant
+ */
+export const useSetConversationTyping = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setConversationTyping>>, TError,{id: number;data: BodyType<ConversationTypingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setConversationTyping>>,
+        TError,
+        {id: number;data: BodyType<ConversationTypingInput>},
+        TContext
+      > => {
+      return useMutation(getSetConversationTypingMutationOptions(options));
     }
 
 export const getAiChatUrl = () => {
