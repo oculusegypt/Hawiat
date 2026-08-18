@@ -26,5 +26,5 @@ description = "أرشيف البناء الكامل بعد إصلاح مسارا
 id = "RTo70OttJokFRCRKOlWig"
 uri = "file://hawiat-update-patch.zip"
 type = "unspecified"
-title = "حزمة التحديث — حفظ موقع العميل في المحادثة"
-description = "حزمة Hostinger النهائية: تحفظ إحداثيات العميل عند إرسال الموقع، تعيدها إلى الإدارة، وتعرض خريطة الموقع الفعلي داخل المحادثة مع رابط خرائط Google."
+title = "hawiat-update-patch.zip — الحزمة الجديدة"
+description = "أحدث حزمة تحديث جاهزة للتنزيل والرفع."
