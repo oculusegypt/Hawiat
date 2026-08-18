@@ -7,6 +7,7 @@
  * الملفات الناتجة في sabaik-update.zip:
  *   assets/       ← JS/CSS المبنية من Vite
  *   index.html    ← صفحة HTML الرئيسية
+ *   الصفحات المولدة/    ← صفحات SEO الثابتة بروابط assets متطابقة
  *   sw.js         ← Service Worker لإظهار الإشعارات وفتح الرابط الصحيح
  *   notification-icon.png ← أيقونة إشعارات الهاتف
  *   api/index.php ← ملف PHP المحدَّث
@@ -42,6 +43,10 @@ run(
   "PORT=19770 BASE_PATH=/ NODE_ENV=production pnpm --filter @workspace/cleanflow-services run build",
   "vite build"
 );
+run(
+  "node scripts/prerender.mjs",
+  "تحديث الصفحات الثابتة بروابط assets الجديدة"
+);
 
 // ── 2. تجميع ملفات التحديث فقط في مجلد مؤقت ─────────────────────────────────
 step("تجميع ملفات التحديث");
@@ -67,6 +72,21 @@ for (const publicFile of ["sw.js", "notification-icon.png"]) {
   }
 }
 console.log("  ✅ assets/ و index.html وملفات الإشعارات");
+
+// صفحات SEO المولدة مسبقاً تحمل روابط hashed إلى JavaScript. يجب تحديثها
+// مع assets في نفس الحزمة، وإلا ستبقى /faq/ وغيرها تشير إلى chunks قديمة.
+const GENERATED_ROUTES = [
+  "blog", "services", "container", "package", "packages", "page", "pages",
+  "pricing", "faq", "الأسئلة-الشائعة", "privacy", "سياسة-الخصوصية",
+  "terms", "الشروط-والأحكام", "contact", "اتصل-بنا", "about", "من-نحن", "areas",
+];
+for (const route of GENERATED_ROUTES) {
+  const source = join(ROOT, "artifacts/sabaik-almasa/dist/public", route);
+  if (existsSync(source)) {
+    cpSync(source, join(STAGING, route), { recursive: true });
+  }
+}
+console.log("  ✅ الصفحات الثابتة المولدة بروابط assets متطابقة");
 
 // ملف PHP — نأخذ المصدر مباشرة حتى لا تُستخدم نسخة build_php قديمة
 copyFileSync(

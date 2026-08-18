@@ -335,6 +335,10 @@ writeFileSync(join(ROOT, "build_php/.htaccess"), `DirectoryIndex index.html inde
   # the standard public /sitemap.xml URL instead of falling through to SPA HTML.
   RewriteRule ^sitemap\\.xml$ api/index.php  [L,QSA]
 
+  # Never serve index.html as JavaScript/CSS. Missing hashed assets must be a
+  # real 404 so stale HTML cannot trigger a module MIME-type error.
+  RewriteRule ^assets/ - [END]
+
   # SPA fallback — everything else loads index.html
   RewriteRule ^  index.html  [L]
 </IfModule>

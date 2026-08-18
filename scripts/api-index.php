@@ -2840,9 +2840,9 @@ try {
              ON CONFLICT(session_id) DO UPDATE SET
                page = excluded.page,
                device_type = excluded.device_type,
-               conversation_id = excluded.conversation_id,
-               client_name = excluded.client_name,
-               phone = excluded.phone,
+               conversation_id = COALESCE(excluded.conversation_id, active_visitors.conversation_id),
+               client_name = COALESCE(excluded.client_name, active_visitors.client_name),
+               phone = COALESCE(excluded.phone, active_visitors.phone),
                last_seen = excluded.last_seen"
         );
         $stmt->execute([

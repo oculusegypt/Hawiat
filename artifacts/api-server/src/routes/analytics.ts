@@ -165,6 +165,9 @@ router.post("/visitor/heartbeat", async (req, res) => {
     const clientName = typeof body.clientName === "string" ? body.clientName.trim().slice(0, 160) : null;
     const phone = typeof body.phone === "string" ? body.phone.trim().slice(0, 40) : null;
     const lastSeen = isoNow();
+    const hasConversationId = Object.prototype.hasOwnProperty.call(body, "conversationId");
+    const hasClientName = Object.prototype.hasOwnProperty.call(body, "clientName");
+    const hasPhone = Object.prototype.hasOwnProperty.call(body, "phone");
 
     await db.insert(activeVisitorsTable).values({
       sessionId,
@@ -176,7 +179,14 @@ router.post("/visitor/heartbeat", async (req, res) => {
       lastSeen,
     }).onConflictDoUpdate({
       target: activeVisitorsTable.sessionId,
-      set: { page, deviceType, conversationId, clientName, phone, lastSeen },
+      set: {
+        page,
+        deviceType,
+        lastSeen,
+        ...(hasConversationId ? { conversationId } : {}),
+        ...(hasClientName ? { clientName } : {}),
+        ...(hasPhone ? { phone } : {}),
+      },
     });
 
     return res.json({ ok: true });
