@@ -14,3 +14,9 @@ Treat SQLite as a deployable snapshot: checkpoint WAL before copying, use DELETE
 **Why:** Shared hosting does not receive SQLite WAL sidecars, and a damaged presence index can make otherwise valid requests and conversations appear offline or break badge queries.
 
 **How to apply:** Make the patch builder own the checkpoint/portable-copy steps and keep any presence-table cleanup isolated from requests, messages, settings, and other durable records.
+
+Keep `/api/admin/conversations` aliases in the PHP API for list, detail, messages, typing, read, and delete operations while older Hostinger bundles may still call the admin-prefixed paths.
+
+**Why:** Existing deployed JavaScript can outlive the source route convention; a valid conversation can look missing when only the URL prefix differs.
+
+**How to apply:** Preserve `/api/conversations` as the canonical route, but make both prefixes return the same records and status codes.

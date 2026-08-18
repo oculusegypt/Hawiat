@@ -3360,7 +3360,7 @@ try {
     }
 
     // ── 34. CONVERSATIONS: /api/conversations ──
-    if ($path === '/conversations' && $method === 'GET') {
+    if (($path === '/conversations' || $path === '/admin/conversations') && $method === 'GET') {
         try {
             $staleCutoff = date('c', time() - 300);
             $pdo->prepare("DELETE FROM active_visitors WHERE last_seen < :cutoff")->execute([':cutoff' => $staleCutoff]);
@@ -3435,6 +3435,49 @@ try {
         exit;
     }
 
+    // Backward-compatible admin aliases used by older deployed bundles.
+    // The canonical public API remains /api/conversations, but Hostinger
+    // installations may still request /api/admin/conversations.
+    if ($path === '/admin/conversations' && $method === 'DELETE') {
+        try {
+            $pdo->beginTransaction();
+            $pdo->exec("DELETE FROM messages");
+            $pdo->exec("DELETE FROM active_visitors WHERE conversation_id IS NOT NULL");
+            $pdo->exec("DELETE FROM conversations");
+            $pdo->commit();
+            echo json_encode(['success' => true]);
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            http_response_code(500);
+            echo json_encode(['error' => 'تعذر حذف المحادثات'], JSON_UNESCAPED_UNICODE);
+        }
+        exit;
+    }
+
+    if (preg_match('#^/admin/conversations/(\d+)$#', $path, $m) && $method === 'DELETE') {
+        $id = (int)$m[1];
+        try {
+            $exists = $pdo->prepare("SELECT id FROM conversations WHERE id = :id LIMIT 1");
+            $exists->execute([':id' => $id]);
+            if (!$exists->fetch()) {
+                http_response_code(404);
+                echo json_encode(['error' => 'المحادثة غير موجودة'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            $pdo->beginTransaction();
+            $pdo->prepare("DELETE FROM messages WHERE conversation_id = :id")->execute([':id' => $id]);
+            $pdo->prepare("DELETE FROM active_visitors WHERE conversation_id = :id")->execute([':id' => $id]);
+            $pdo->prepare("DELETE FROM conversations WHERE id = :id")->execute([':id' => $id]);
+            $pdo->commit();
+            echo json_encode(['success' => true, 'id' => $id], JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            http_response_code(500);
+            echo json_encode(['error' => 'تعذر حذف المحادثة'], JSON_UNESCAPED_UNICODE);
+        }
+        exit;
+    }
+
     // Customer-side unread messages polling. This replaces realtime Node events
     // for the public chat on Hostinger.
     if ($path === '/visitor/unread-messages' && $method === 'GET') {
@@ -3480,7 +3523,7 @@ try {
         exit;
     }
 
-    if (preg_match('#^/conversations/(\d+)$#', $path, $m) && $method === 'GET') {
+    if (preg_match('#^/(?:admin/)?conversations/(\d+)$#', $path, $m) && $method === 'GET') {
         $id = (int)$m[1];
         $stmt = $pdo->prepare("SELECT * FROM conversations WHERE id = :id LIMIT 1");
         $stmt->execute([':id' => $id]);
@@ -3514,7 +3557,7 @@ try {
         exit;
     }
 
-    if (preg_match('#^/conversations/(\d+)/typing$#', $path, $m) && $method === 'POST') {
+    if (preg_match('#^/(?:admin/)?conversations/(\d+)/typing$#', $path, $m) && $method === 'POST') {
         $id = (int)$m[1];
         $senderType = $input['senderType'] ?? '';
         if (!in_array($senderType, ['client', 'admin'], true)) {
@@ -3530,7 +3573,7 @@ try {
         exit;
     }
 
-    if (preg_match('#^/conversations/(\d+)/read$#', $path, $m) && $method === 'POST') {
+    if (preg_match('#^/(?:admin/)?conversations/(\d+)/read$#', $path, $m) && $method === 'POST') {
         $id = (int)$m[1];
         $stmt = $pdo->prepare("UPDATE messages SET is_read = 'true' WHERE conversation_id = :id AND sender_type = 'client'");
         $stmt->execute([':id' => $id]);
@@ -3539,7 +3582,7 @@ try {
         exit;
     }
 
-    if (preg_match('#^/conversations/(\d+)/messages$#', $path, $m) && $method === 'GET') {
+    if (preg_match('#^/(?:admin/)?conversations/(\d+)/messages$#', $path, $m) && $method === 'GET') {
         $id = (int)$m[1];
         try {
             $stmt = $pdo->prepare("SELECT * FROM messages WHERE conversation_id = :id ORDER BY created_at ASC, id ASC");
@@ -3564,7 +3607,7 @@ try {
         exit;
     }
 
-    if (preg_match('#^/conversations/(\d+)/messages$#', $path, $m) && $method === 'POST') {
+    if (preg_match('#^/(?:admin/)?conversations/(\d+)/messages$#', $path, $m) && $method === 'POST') {
         $convId = (int)$m[1];
         $content = $input['content'] ?? '';
         $senderType = $input['senderType'] ?? 'client';

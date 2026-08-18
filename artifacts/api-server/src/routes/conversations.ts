@@ -42,7 +42,7 @@ async function getConversationWithPresence(id: number) {
   return decorateConversation(conversation, visitor);
 }
 
-router.get("/conversations", requireAdmin, requireNonDriver, async (_req, res) => {
+router.get(["/conversations", "/admin/conversations"], requireAdmin, requireNonDriver, async (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
   const conversations = await db.select().from(conversationsTable).orderBy(desc(conversationsTable.updatedAt));
   const visitors = await db.select().from(activeVisitorsTable);
@@ -78,7 +78,7 @@ router.post("/conversations", async (req, res) => {
   return res.status(201).json(conversation);
 });
 
-router.get("/conversations/:id", async (req, res) => {
+router.get(["/conversations/:id", "/admin/conversations/:id"], async (req, res) => {
   const id = parseInt(String(req.params.id), 10);
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({ error: "معرّف المحادثة غير صحيح" });
@@ -88,7 +88,7 @@ router.get("/conversations/:id", async (req, res) => {
   return res.json(conversation);
 });
 
-router.post("/conversations/:id/typing", async (req, res) => {
+router.post(["/conversations/:id/typing", "/admin/conversations/:id/typing"], async (req, res) => {
   const id = parseInt(String(req.params.id), 10);
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({ error: "معرّف المحادثة غير صحيح" });
@@ -111,7 +111,7 @@ router.post("/conversations/:id/typing", async (req, res) => {
   return res.json({ ok: true, isTyping });
 });
 
-router.patch("/conversations/:id", requireAdmin, requireNonDriver, async (req, res) => {
+router.patch(["/conversations/:id", "/admin/conversations/:id"], requireAdmin, requireNonDriver, async (req, res) => {
   const id = parseInt(String(req.params.id), 10);
   const { status } = req.body;
   const [conversation] = await db.update(conversationsTable)
@@ -122,8 +122,8 @@ router.patch("/conversations/:id", requireAdmin, requireNonDriver, async (req, r
   return res.json(conversation);
 });
 
-router.get("/conversations/:id/messages", async (req, res) => {
-  const id = parseInt(req.params.id);
+router.get(["/conversations/:id/messages", "/admin/conversations/:id/messages"], async (req, res) => {
+  const id = parseInt(String(req.params.id), 10);
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({ error: "معرّف المحادثة غير صحيح" });
   }
@@ -135,7 +135,7 @@ router.get("/conversations/:id/messages", async (req, res) => {
 
 // Only an authenticated admin opening a conversation marks the client's
 // messages as read. Public/customer polling must never clear the admin badge.
-router.post("/conversations/:id/read", requireAdmin, requireNonDriver, async (req, res) => {
+router.post(["/conversations/:id/read", "/admin/conversations/:id/read"], requireAdmin, requireNonDriver, async (req, res) => {
   const id = parseInt(String(req.params.id), 10);
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({ error: "معرّف المحادثة غير صحيح" });
@@ -159,8 +159,8 @@ router.post("/conversations/:id/read", requireAdmin, requireNonDriver, async (re
   return res.json({ success: true, conversationId: id });
 });
 
-router.post("/conversations/:id/messages", async (req, res) => {
-  const id = parseInt(req.params.id);
+router.post(["/conversations/:id/messages", "/admin/conversations/:id/messages"], async (req, res) => {
+  const id = parseInt(String(req.params.id), 10);
   const {
     content,
     senderType,

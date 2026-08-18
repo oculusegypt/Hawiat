@@ -26,5 +26,5 @@ description = "حزمة كاملة مبنية بعد استبدال ملفات �
 id = "RTo70OttJokFRCRKOlWig"
 uri = "file://hawiat-update-patch.zip"
 type = "unspecified"
-title = "حزمة تحديث Hostinger"
-description = "Patch جاهز لإصلاح الحضور والعدادات والإشعارات على Hostinger، ويحتوي على الواجهة وPHP API وملف SQLite الحالي وملفات Web Push."
+title = "حزمة إصلاح المحادثات لـHostinger"
+description = "النسخة المحدّثة تعالج مسارات /api/admin/conversations وتبقي المسارات القياسية، وتشمل PHP API وقاعدة SQLite وملفات الواجهة."
