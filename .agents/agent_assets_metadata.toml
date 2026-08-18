@@ -26,5 +26,5 @@ description = "أرشيف البناء الكامل بعد إصلاح مسارا
 id = "RTo70OttJokFRCRKOlWig"
 uri = "file://hawiat-update-patch.zip"
 type = "unspecified"
-title = "hawiat-update-patch.zip — إخفاء إشعارات الرسائل"
-description = "حزمة Hostinger محدثة تخفي إشعارات chat وconversation وmessage وwhatsapp من صفحة الإشعارات فقط، مع الحفاظ على كل الوظائف والإصلاحات السابقة."
+title = "hawiat-update-patch.zip — إصلاح عداد إشعارات السايدبار"
+description = "حزمة Hostinger محدثة تجعل عداد إشعارات السايدبار يستبعد إشعارات chat وconversation وmessage وwhatsapp، مع إبقاء إشعارات الطلبات والنظام ظاهرة وعدم تغيير قاعدة البيانات أو وظائف الرسائل."

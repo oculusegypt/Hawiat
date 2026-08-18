@@ -1206,7 +1206,14 @@ try {
             $unreadMessages = (int)$pdo->query("SELECT COALESCE(SUM(unread_count), 0) FROM conversations WHERE status NOT IN ('closed', 'cancelled')")->fetchColumn();
         }
         $unreadConversations = (int)$pdo->query("SELECT COUNT(*) FROM conversations WHERE status NOT IN ('closed', 'cancelled') AND unread_count > 0")->fetchColumn();
-        $unreadNotifications = (int)$pdo->query("SELECT COUNT(*) FROM notifications WHERE is_read = 0")->fetchColumn();
+        // Match the notifications page and bell: chat/message records belong
+        // to the conversations area and must not appear in the sidebar badge.
+        $unreadNotifications = (int)$pdo->query(
+            "SELECT COUNT(*) FROM notifications
+             WHERE is_read = 0
+               AND COALESCE(type, '') NOT IN ('chat', 'conversation', 'message', 'whatsapp')
+               AND COALESCE(ref_type, '') <> 'conversation'"
+        )->fetchColumn();
         echo json_encode([
             'pendingRequests' => $pendingRequests,
             'openConversations' => $openConversations,

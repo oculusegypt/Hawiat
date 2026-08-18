@@ -28,12 +28,21 @@ router.get("/admin/sidebar-counts", requireAdmin, requireNonDriver, async (_req,
     .select({ count: count() })
     .from(serviceRequestsTable)
     .where(eq(serviceRequestsTable.status, "pending"));
+  const [unreadNotificationCount] = await db
+    .select({ count: count() })
+    .from(notificationsTable)
+    .where(sql`
+      ${notificationsTable.isRead} = 0
+      AND COALESCE(${notificationsTable.type}, '') NOT IN ('chat', 'conversation', 'message', 'whatsapp')
+      AND COALESCE(${notificationsTable.refType}, '') <> 'conversation'
+    `);
 
   return res.json({
     unreadConversations: Number(conversationCount?.count ?? 0),
     unreadMessages: Number(conversationCount?.count ?? 0),
     openConversations: Number(openConversationCount?.count ?? 0),
     pendingRequests: Number(pendingRequestCount?.count ?? 0),
+    unreadNotifications: Number(unreadNotificationCount?.count ?? 0),
   });
 });
 
