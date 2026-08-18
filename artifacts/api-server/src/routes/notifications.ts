@@ -7,6 +7,7 @@ import { requireAdmin, requireNonDriver } from "../middleware/adminAuth";
 const router = Router();
 
 router.get("/notifications", requireAdmin, requireNonDriver, async (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   const notifications = await db.select().from(notificationsTable).orderBy(desc(notificationsTable.createdAt));
   return res.json(notifications);
 });

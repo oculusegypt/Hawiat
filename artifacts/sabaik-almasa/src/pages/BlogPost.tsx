@@ -476,7 +476,7 @@ export default function BlogPost() {
           />
 
           {/* ── CTA Block ── */}
-          <ArticleCTA onOpen={() => openModal()} phoneCall={phoneCall} phoneWhatsapp={phoneWhatsapp} />
+          <ArticleCTA onOpen={() => openModal()} phoneCall={phoneCall} phoneWhatsapp={phoneWhatsapp} postTitle={resolvedPost.title} />
 
           {/* ── Containers at end of article ── */}
           <ArticleContainers onOpen={(size) => openModal(size ? { containerSize: size } : undefined)} />

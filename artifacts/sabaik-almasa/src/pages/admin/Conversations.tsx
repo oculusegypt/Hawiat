@@ -14,6 +14,18 @@ import { resolveServiceTypeFromContainer } from "@/components/home/packages/Pack
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || ""
 
+type AdminMessage = {
+  id: number
+  senderType: string
+  messageType?: string
+  metadata?: string | null
+  content: string
+  attachmentUrl?: string | null
+  locationLabel?: string | null
+  locationLat?: string | null
+  locationLng?: string | null
+}
+
 function normalizePhone(value: string) {
   const digits = value.replace(/\D/g, "")
   if (digits.startsWith("00966")) return `0${digits.slice(5)}`
@@ -53,7 +65,9 @@ export default function AdminConversations() {
   const { data: messages, refetch: refetchMsgs } = useGetMessages(selectedId as number, {
     query: { enabled: !!selectedId, refetchInterval: 3000 } as any,
   })
-  const messageList = Array.isArray(messages) ? messages : (Array.isArray((messages as any)?.messages) ? (messages as any).messages : [])
+  const messageList: AdminMessage[] = Array.isArray(messages)
+    ? messages as AdminMessage[]
+    : (Array.isArray((messages as any)?.messages) ? (messages as any).messages as AdminMessage[] : [])
 
   const { mutate: sendMsg } = useSendMessage()
   const { mutate: updateConv } = useUpdateConversation()

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Bell, X, Package, MessageSquare, Info, CheckCheck, ExternalLink, Smartphone, Loader2, ShieldAlert } from "lucide-react"
 import { Link } from "wouter"
 import { fetchAdminMutation } from "@/lib/adminMutation"
+import { playNotificationChime } from "@/lib/visitorAttribution"
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || ""
 const SERVICE_WORKER_URL = `${API_BASE}/sw.js`
@@ -204,35 +205,10 @@ interface Notification {
   createdAt: string
 }
 
-// ── Sound Engine ──────────────────────────────────────────────────────────────
-
-function playNotificationSound() {
-  try {
-    if (localStorage.getItem("admin_sound_muted") === "true" || localStorage.getItem("sound_muted") === "true") return
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
-    if (!AudioCtx) return
-    const ctx = new AudioCtx()
-
-    // Three-note ascending chime
-    const notes = [880, 1100, 1320]
-    notes.forEach((freq, i) => {
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-
-      osc.type = "sine"
-      osc.frequency.value = freq
-
-      const t = ctx.currentTime + i * 0.12
-      gain.gain.setValueAtTime(0, t)
-      gain.gain.linearRampToValueAtTime(0.25, t + 0.03)
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3)
-
-      osc.start(t)
-      osc.stop(t + 0.35)
-    })
-  } catch {}
+function isMessageNotification(notification: Pick<Notification, "type" | "refType">): boolean {
+  return notification.type === "chat"
+    || notification.type === "conversation"
+    || notification.refType === "conversation"
 }
 
 // ── Floating Toast ─────────────────────────────────────────────────────────────
@@ -281,6 +257,7 @@ function FloatingToast({ toast, onClose }: { toast: ToastItem; onClose: () => vo
 
 export function AdminToastPortal() {
   const [toasts, setToasts] = useState<ToastItem[]>([])
+  const shownNotificationIdsRef = useRef(new Set<number>())
 
   const removeToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id))
@@ -289,8 +266,9 @@ export function AdminToastPortal() {
   // Listen for custom events from the notification bell
   useEffect(() => {
     const handler = (e: CustomEvent<Notification>) => {
-      const id = crypto.randomUUID()
-      setToasts(prev => [...prev.slice(-3), { id, notification: e.detail }])
+      if (!e.detail?.id || shownNotificationIdsRef.current.has(e.detail.id)) return
+      shownNotificationIdsRef.current.add(e.detail.id)
+      setToasts(prev => [...prev.slice(-3), { id: String(e.detail.id), notification: e.detail }])
     }
     window.addEventListener("admin:new-notification" as any, handler)
     return () => window.removeEventListener("admin:new-notification" as any, handler)
@@ -328,11 +306,22 @@ function notifIcon(type: string) {
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false)
   const [notifications, setNotifications] = useState<Notification[]>([])
-  const [lastSeenId, setLastSeenId] = useState<number>(0)
   const [isMarkingAll, setIsMarkingAll] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const initializedRef = useRef(false)
+  const seenNotificationIdsRef = useRef(new Set<number>())
   const token = localStorage.getItem("admin_token") || ""
+
+  const announceNotification = useCallback((notification: Notification) => {
+    if (!notification.id || seenNotificationIdsRef.current.has(notification.id)) return
+    seenNotificationIdsRef.current.add(notification.id)
+    playNotificationChime()
+    window.dispatchEvent(new CustomEvent(
+      isMessageNotification(notification) ? "admin:new-message" : "admin:new-notification",
+      { detail: notification },
+    ))
+  }, [])
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -344,24 +333,41 @@ export function NotificationBell() {
       const data: Notification[] = await res.json()
       setNotifications(data)
 
-      // Detect new notifications since last poll
-      const maxId = data[0]?.id ?? 0
-      if (lastSeenId > 0 && maxId > lastSeenId) {
-        // New notifications arrived
-        const newOnes = data.filter(n => n.id > lastSeenId)
-        newOnes.forEach(n => {
-          playNotificationSound()
-          window.dispatchEvent(new CustomEvent("admin:new-notification", { detail: n }))
-        })
+      const ordered = [...data].sort((a, b) => a.id - b.id)
+      if (!initializedRef.current) {
+        ordered.forEach(n => seenNotificationIdsRef.current.add(n.id))
+        initializedRef.current = true
+      } else {
+        ordered
+          .filter(n => !seenNotificationIdsRef.current.has(n.id))
+          .forEach(announceNotification)
+        ordered.forEach(n => seenNotificationIdsRef.current.add(n.id))
       }
-      if (maxId > lastSeenId) setLastSeenId(maxId)
     } catch {}
-  }, [token, lastSeenId])
+  }, [token, announceNotification])
+
+  // A visible admin tab receives the push through the service worker and
+  // announces it here. The worker shows a native notification only when no
+  // visible admin tab is available, preventing one event from firing twice.
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type !== "admin:push-notification") return
+      const incoming = event.data.notification as Notification | undefined
+      if (!incoming?.id) return
+      setNotifications(prev => [
+        incoming,
+        ...prev.filter(notification => notification.id !== incoming.id),
+      ].sort((a, b) => b.id - a.id))
+      announceNotification(incoming)
+    }
+    navigator.serviceWorker?.addEventListener("message", handler)
+    return () => navigator.serviceWorker?.removeEventListener("message", handler)
+  }, [announceNotification])
 
   // Initial fetch
   useEffect(() => {
-    fetchNotifications()
-  }, [])
+    void fetchNotifications()
+  }, [fetchNotifications])
 
   // Poll every 8 seconds
   useEffect(() => {
@@ -385,7 +391,8 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handler)
   }, [])
 
-  const unreadCount = notifications.filter(n => !n.isRead).length
+  const bellNotifications = notifications.filter(notification => !isMessageNotification(notification))
+  const unreadCount = bellNotifications.filter(n => !n.isRead).length
 
   const markAsRead = async (id: number) => {
     try {
@@ -489,13 +496,13 @@ export function NotificationBell() {
 
               {/* List */}
               <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
-                {notifications.length === 0 ? (
+                {bellNotifications.length === 0 ? (
                   <div className="text-center py-10 text-gray-400">
                     <Bell size={28} className="mx-auto mb-2 opacity-30" />
                     <p className="text-sm">لا توجد إشعارات</p>
                   </div>
                 ) : (
-                  notifications.slice(0, 15).map((n) => (
+                  bellNotifications.slice(0, 15).map((n) => (
                     <div
                       key={n.id}
                       className={`flex gap-3 px-4 py-3 transition-colors cursor-pointer ${

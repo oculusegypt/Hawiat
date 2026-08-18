@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useLocation, Link, useRoute } from "wouter"
 import {
   LayoutDashboard, Inbox, MessageSquare, Bell, LogOut,
@@ -9,7 +9,6 @@ import {
 } from "lucide-react"
 import { NotificationBell, AdminToastPortal } from "@/components/admin/NotificationBell"
 import { useSiteSettings } from "@/context/SiteSettingsContext"
-import { playNotificationChime } from "@/lib/visitorAttribution"
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || ""
 // ── Nav items with section keys for permission filtering ──────────────────────
@@ -178,8 +177,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [unreadConversations, setUnreadConversations] = useState(0)
   const [pendingRequests, setPendingRequests] = useState(0)
   const [isSoundMuted, setIsSoundMuted] = useState(() => localStorage.getItem("admin_sound_muted") === "true")
-  const lastUnreadConvRef = useRef<number | null>(null)
-  const lastPendingReqRef = useRef<number | null>(null)
 
   const toggleSound = () => {
     setIsSoundMuted(prev => {
@@ -237,43 +234,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     const pollBadges = async () => {
       try {
-        const sRes = await fetch(`${API_BASE}/api/admin/sidebar-counts`)
+        const sRes = await fetch(`${API_BASE}/api/admin/sidebar-counts`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Cache-Control": "no-cache",
+          },
+          cache: "no-store",
+        })
         if (sRes.ok) {
           const data = await sRes.json()
           const totalUnread = Number(data.unreadConversations || 0)
           const pending = Number(data.pendingRequests || 0)
-
-          if (lastUnreadConvRef.current !== null && totalUnread > lastUnreadConvRef.current) {
-            const isMuted = localStorage.getItem("admin_sound_muted") === "true"
-            if (!isMuted) {
-              playNotificationChime()
-            }
-            try {
-              if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-                new Notification("💬 رسالة جديدة في المحادثات", {
-                  body: `لديك ${totalUnread} رسالة غير مقروءة في الدعم المباشر`,
-                  icon: "/favicon.svg",
-                })
-              }
-            } catch {}
-          }
-          lastUnreadConvRef.current = totalUnread
-
-          if (lastPendingReqRef.current !== null && pending > lastPendingReqRef.current) {
-            const isMuted = localStorage.getItem("admin_sound_muted") === "true"
-            if (!isMuted) {
-              playNotificationChime()
-            }
-            try {
-              if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-                new Notification("📦 طلب جديد وارد", {
-                  body: `لديك ${pending} طلب جديد قيد الانتظار`,
-                  icon: "/favicon.svg",
-                })
-              }
-            } catch {}
-          }
-          lastPendingReqRef.current = pending
 
           setUnreadConversations(totalUnread)
           setPendingRequests(pending)
@@ -284,6 +255,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     pollBadges()
     const timer = setInterval(pollBadges, 3000)
     return () => clearInterval(timer)
+  }, [])
+
+  // The chat stream can arrive from the service worker before the next badge
+  // poll. Update the message icon immediately; the next poll reconciles it
+  // with the authoritative unread count from the server.
+  useEffect(() => {
+    const handleNewMessage = () => {
+      setUnreadConversations(current => current + 1)
+    }
+    window.addEventListener("admin:new-message", handleNewMessage)
+    return () => window.removeEventListener("admin:new-message", handleNewMessage)
   }, [])
 
   const [location] = useLocation()

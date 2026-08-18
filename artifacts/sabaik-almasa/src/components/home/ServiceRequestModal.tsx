@@ -12,6 +12,7 @@ import { useSiteSettings } from "@/context/SiteSettingsContext"
 import { DraggableMapPicker } from "@/components/ui/DraggableMapPicker"
 import { useGetContainers } from "@workspace/api-client-react"
 import { getVisitorTracking, sendVisitorHeartbeat } from "@/lib/visitorAttribution"
+import { getHighAccuracyPosition } from "@/lib/reverseGeocode"
 import { SERVICE_TYPES, DEBRIS_CONTAINERS, WASTE_CONTAINERS } from "@/components/request-modal/constants"
 import { getContainerValue, getContainersForService } from "@/lib/packageOptions"
 

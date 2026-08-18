@@ -15,29 +15,43 @@ self.addEventListener("push", (event) => {
     data = { title: "إشعار جديد", message: event.data?.text?.() || "" };
   }
 
-  const title = data.title || "إشعار جديد";
-  const targetPath = data.refType === "service_request" && data.refId
-    ? `/admin/requests?open=${encodeURIComponent(data.refId)}`
-    : data.refType === "conversation" && data.refId
-      ? `/admin/conversations?open=${encodeURIComponent(data.refId)}`
-      : data.refType === "whatsapp" && data.refId
-        ? `/admin/whatsapp?open=${encodeURIComponent(data.refId)}`
-        : "/admin/notifications";
-  const options = {
-    body: data.message || "لديك إشعار جديد في لوحة الإدارة",
-    // The notification icon must be square. The old logo.png is a wide
-    // wordmark, so Android cropped it and often hid the notification icon.
-    icon: new URL("notification-icon.png", self.registration.scope).href,
-    badge: new URL("notification-icon.png", self.registration.scope).href,
-    dir: "rtl",
-    lang: "ar",
-    tag: data.id ? `sabaik-notification-${data.id}` : "sabaik-notification",
-    renotify: true,
-    silent: false,
-    data: { url: targetPath, notificationId: data.id, refId: data.refId, refType: data.refType },
-  };
+  event.waitUntil((async () => {
+    const visibleClients = await self.clients.matchAll({
+      type: "window",
+      includeUncontrolled: true,
+    });
+    const visibleAdmin = visibleClients.find(client =>
+      client.visibilityState === "visible" && new URL(client.url).pathname.startsWith("/admin")
+    );
+    if (visibleAdmin) {
+      visibleAdmin.postMessage({ type: "admin:push-notification", notification: data });
+      return;
+    }
 
-  event.waitUntil(self.registration.showNotification(title, options));
+    const title = data.title || "إشعار جديد";
+    const targetPath = data.refType === "service_request" && data.refId
+      ? `/admin/requests?open=${encodeURIComponent(data.refId)}`
+      : data.refType === "conversation" && data.refId
+        ? `/admin/conversations?open=${encodeURIComponent(data.refId)}`
+        : data.refType === "whatsapp" && data.refId
+          ? `/admin/whatsapp?open=${encodeURIComponent(data.refId)}`
+          : "/admin/notifications";
+    const options = {
+      body: data.message || "لديك إشعار جديد في لوحة الإدارة",
+      // The notification icon must be square. The old logo.png is a wide
+      // wordmark, so Android cropped it and often hid the notification icon.
+      icon: new URL("notification-icon.png", self.registration.scope).href,
+      badge: new URL("notification-icon.png", self.registration.scope).href,
+      dir: "rtl",
+      lang: "ar",
+      tag: data.id ? `sabaik-notification-${data.id}` : "sabaik-notification",
+      renotify: true,
+      silent: false,
+      data: { url: targetPath, notificationId: data.id, refId: data.refId, refType: data.refType },
+    };
+
+    await self.registration.showNotification(title, options);
+  })());
 });
 
 self.addEventListener("notificationclick", (event) => {
