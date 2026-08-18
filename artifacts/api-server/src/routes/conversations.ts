@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { conversationsTable, messagesTable, containersTable } from "@workspace/db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 import { createNotification } from "../lib/pushNotifications";
 import { requireAdmin, requireNonDriver } from "../middleware/adminAuth";
 
@@ -55,14 +55,39 @@ router.patch("/conversations/:id", requireAdmin, requireNonDriver, async (req, r
 
 router.get("/conversations/:id/messages", async (req, res) => {
   const id = parseInt(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: "معرّف المحادثة غير صحيح" });
+  }
   const messages = await db.select().from(messagesTable)
     .where(eq(messagesTable.conversationId, id))
     .orderBy(desc(messagesTable.createdAt));
-  // Mark as read
-  await db.update(messagesTable).set({ isRead: "true" }).where(eq(messagesTable.conversationId, id));
-  // Reset unread count
-  await db.update(conversationsTable).set({ unreadCount: 0 }).where(eq(conversationsTable.id, id));
   return res.json(messages.reverse());
+});
+
+// Only an authenticated admin opening a conversation marks the client's
+// messages as read. Public/customer polling must never clear the admin badge.
+router.post("/conversations/:id/read", requireAdmin, requireNonDriver, async (req, res) => {
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: "معرّف المحادثة غير صحيح" });
+  }
+
+  const [conversation] = await db.select({ id: conversationsTable.id })
+    .from(conversationsTable)
+    .where(eq(conversationsTable.id, id));
+  if (!conversation) return res.status(404).json({ error: "المحادثة غير موجودة" });
+
+  await db.update(messagesTable)
+    .set({ isRead: "true" })
+    .where(and(
+      eq(messagesTable.conversationId, id),
+      eq(messagesTable.senderType, "client"),
+    ));
+  await db.update(conversationsTable)
+    .set({ unreadCount: 0 })
+    .where(eq(conversationsTable.id, id));
+
+  return res.json({ success: true, conversationId: id });
 });
 
 router.post("/conversations/:id/messages", async (req, res) => {
