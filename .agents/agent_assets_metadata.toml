@@ -26,5 +26,5 @@ description = "أرشيف البناء الكامل بعد إصلاح مسارا
 id = "RTo70OttJokFRCRKOlWig"
 uri = "file://hawiat-update-patch.zip"
 type = "unspecified"
-title = "hawiat-update-patch.zip"
-description = "حزمة تحديث خفيفة بنفس بنية الحزمة السابقة، تحتوي ملفات الواجهة المحدثة وPHP API وقاعدة البيانات وملفات الإشعارات دون الصور أو مجلد uploads."
+title = "hawiat-update-patch.zip — إصلاح خطأ FAQ"
+description = "نسخة Patch محدثة تحافظ على الإصدار الحالي وتضيف ملف توافق FaqPage-R3henCVg.js لمعالجة طلبات المتصفح أو الكاش القديمة، مع بقاء ملف FAQ الجديد داخل الحزمة."

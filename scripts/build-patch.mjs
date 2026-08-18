@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { existsSync, rmSync, mkdirSync, copyFileSync, cpSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, rmSync, mkdirSync, copyFileSync, cpSync, statSync, writeFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,6 +28,15 @@ const assetsDst = join(PATCH_DIR, "assets");
 if (existsSync(assetsSrc)) {
   cpSync(assetsSrc, assetsDst, { recursive: true });
   console.log("✓ تم نسخ ملفات JS / CSS المحدثة فقط.");
+
+  // Compatibility alias for cached HTML from the previous patch. Some
+  // browsers/CDNs can keep the old lazy-import URL after index.html changes;
+  // keep the current FAQ implementation available at that exact old URL.
+  const currentFaqAsset = readdirSync(assetsSrc).find((name) => /^FaqPage-[^/]+\.js$/.test(name));
+  if (currentFaqAsset) {
+    copyFileSync(join(assetsSrc, currentFaqAsset), join(assetsDst, "FaqPage-R3henCVg.js"));
+    console.log(`✓ تمت إضافة اسم توافق قديم لـ FAQ: ${currentFaqAsset} → FaqPage-R3henCVg.js`);
+  }
 }
 
 const indexSrc = join(distPublic, "index.html");
