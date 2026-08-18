@@ -54,6 +54,58 @@ function formatDate(iso: string | null): string {
 
 type Section = "basic" | "content" | "seo"
 
+type UnknownRecord = Record<string, unknown>
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function extractPostRows(data: unknown): Post[] | null {
+  const candidates: unknown[] = [data]
+
+  if (isRecord(data)) {
+    for (const key of ["posts", "items", "rows", "results", "data", "result"]) {
+      candidates.push(data[key])
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate as Post[]
+
+    // A few PHP JSON serializers return a numerically keyed object instead of
+    // a JSON array. Convert only objects that clearly look like post rows so
+    // error/status objects are never displayed as articles.
+    if (isRecord(candidate)) {
+      const values = Object.values(candidate)
+      if (
+        values.length > 0 &&
+        values.every((value) => isRecord(value) && ("id" in value || "title" in value))
+      ) {
+        return values as Post[]
+      }
+    }
+  }
+
+  return null
+}
+
+function extractReportedTotal(data: unknown): number | null {
+  const candidates: unknown[] = []
+  if (isRecord(data)) {
+    candidates.push(data.total, data.count)
+    for (const key of ["data", "result"]) {
+      const nested = data[key]
+      if (isRecord(nested)) candidates.push(nested.total, nested.count)
+    }
+  }
+
+  for (const candidate of candidates) {
+    const total = Number(candidate)
+    if (Number.isFinite(total)) return total
+  }
+  return null
+}
+
 export default function AdminBlog() {
   const { toast } = useToast()
   const { companyName } = useSiteSettings()
@@ -91,22 +143,13 @@ export default function AdminBlog() {
         throw new Error(data?.error || `تعذر تحميل المقالات (${response.status})`)
       }
 
-      // PHP and the current Node admin route return an array. Older/API-proxy
-      // deployments may wrap the same result in { posts, total }.
-      const rows = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.posts)
-          ? data.posts
-          : Array.isArray(data?.data?.posts)
-            ? data.data.posts
-            : Array.isArray(data?.data)
-              ? data.data
-              : null
+      // Hostinger runs the PHP API. Accept its array response plus the
+      // envelopes used by older PHP/API proxy deployments.
+      const rows = extractPostRows(data)
       if (!rows) throw new Error("استجابة المقالات غير صالحة")
 
       setPosts(rows)
-      const reportedTotal = Number(data?.total ?? data?.data?.total)
-      setTotalAvailable(Number.isFinite(reportedTotal) ? reportedTotal : rows.length)
+      setTotalAvailable(extractReportedTotal(data) ?? rows.length)
     } catch (error: any) {
       setPosts([])
       setTotalAvailable(null)

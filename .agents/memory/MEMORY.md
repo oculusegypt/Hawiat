@@ -3,3 +3,4 @@
 - [Hostinger patch delivery](hostinger-patch-notifications.md) — Hostinger patches must include the SQLite database and Web Push worker assets; PHP Web Push needs explicit HKDF extract/expand.
 - [Hashed asset compatibility](hashed-asset-compatibility.md) — stale Vite lazy-import URLs need a compatibility alias in Hostinger patches.
 - [React DOM ownership](react-dom-ownership.md) — never mutate React-managed nodes with innerHTML or direct child removal; render fallbacks through React state.
+- [Hostinger PHP JSON encoding](hostinger-php-json-encoding.md) — use UTF-8 substitution when serializing legacy SQLite text to avoid empty 200 responses.

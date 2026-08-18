@@ -648,7 +648,7 @@ try {
                     'createdAt' => $n['created_at']
                 ];
             }, $rows);
-            echo json_encode($formatted, JSON_UNESCAPED_UNICODE);
+            echo json_encode($formatted, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         } catch (\Exception $e) {
             echo json_encode([], JSON_UNESCAPED_UNICODE);
         }
@@ -934,7 +934,13 @@ try {
                     'updatedAt' => $r['updated_at'] ?? date('c')
                 ];
             }, $rows);
-            echo json_encode($formatted, JSON_UNESCAPED_UNICODE);
+            // Hostinger serves the frontend statically and PHP is the only
+            // runtime API. Return a stable envelope and replace malformed
+            // legacy bytes instead of allowing json_encode() to emit nothing.
+            echo json_encode([
+                'posts' => $formatted,
+                'total' => count($formatted),
+            ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         } catch (\Exception $e) {
             echo json_encode([], JSON_UNESCAPED_UNICODE);
         }
@@ -3069,7 +3075,13 @@ try {
                     'updatedAt' => $p['updated_at'] ?? date('c')
                 ];
             }, $rows);
-            echo json_encode($formatted, JSON_UNESCAPED_UNICODE);
+            // Hostinger serves the frontend statically and PHP is the only
+            // runtime API. Replace malformed legacy bytes so json_encode()
+            // cannot fail silently and return an empty response.
+            echo json_encode([
+                'posts' => $formatted,
+                'total' => count($formatted),
+            ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
         } catch (\Exception $e) {
             echo json_encode([], JSON_UNESCAPED_UNICODE);
         }
