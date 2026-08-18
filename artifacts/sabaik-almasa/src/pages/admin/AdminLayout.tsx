@@ -1,13 +1,15 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useLocation, Link, useRoute } from "wouter"
 import {
   LayoutDashboard, Inbox, MessageSquare, Bell, LogOut,
   Settings, Box, ExternalLink, SlidersHorizontal, Search,
   Menu, X, Megaphone, BarChart3, BookOpen, Users, UserCircle,
   ShieldCheck, Shield, Headphones, ClipboardList, Database, MessageCircle, Truck, FilePenLine, Star,
+  Volume2, VolumeX,
 } from "lucide-react"
 import { NotificationBell, AdminToastPortal } from "@/components/admin/NotificationBell"
 import { useSiteSettings } from "@/context/SiteSettingsContext"
+import { playNotificationChime } from "@/lib/visitorAttribution"
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || ""
 // ── Nav items with section keys for permission filtering ──────────────────────
@@ -48,18 +50,25 @@ const ROLE_INFO: Record<string, { label: string; icon: React.ElementType; color:
 
 // ── Nav Item ──────────────────────────────────────────────────────────────────
 
-function NavItem({ href, icon: Icon, label, onClick }: {
-  href: string; icon: React.ElementType; label: string; onClick?: () => void
+function NavItem({ href, icon: Icon, label, badge, badgeColor = "bg-rose-500", onClick }: {
+  href: string; icon: React.ElementType; label: string; badge?: number; badgeColor?: string; onClick?: () => void
 }) {
   const [isActive] = useRoute(href)
   return (
     <li>
       <Link href={href} onClick={onClick}
-        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm ${
+        className={`flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl transition-all text-sm ${
           isActive ? "bg-secondary text-primary font-bold shadow-sm" : "text-gray-300 hover:bg-white/10 hover:text-white"
         }`}>
-        <Icon size={18} className="shrink-0" />
-        <span className="truncate">{label}</span>
+        <div className="flex items-center gap-3 min-w-0">
+          <Icon size={18} className="shrink-0" />
+          <span className="truncate">{label}</span>
+        </div>
+        {badge !== undefined && badge > 0 && (
+          <span className={`px-2 py-0.5 rounded-full text-[11px] font-black text-white ${badgeColor} ${badgeColor.includes("rose") ? "animate-pulse" : ""} shadow-xs shrink-0`}>
+            {badge > 99 ? "+99" : badge}
+          </span>
+        )}
       </Link>
     </li>
   )
@@ -67,12 +76,14 @@ function NavItem({ href, icon: Icon, label, onClick }: {
 
 // ── Sidebar Content ───────────────────────────────────────────────────────────
 
-function SidebarContent({ permissions = [], onNavClick, onLogout, userName, userRole }: {
+function SidebarContent({ permissions = [], onNavClick, onLogout, userName, userRole, unreadConversations = 0, pendingRequests = 0 }: {
   permissions?: string[]
   onNavClick?: () => void
   onLogout: () => void
   userName: string
   userRole: string
+  unreadConversations?: number
+  pendingRequests?: number
 }) {
   const { companyName, logoUrl, isLoaded } = useSiteSettings()
   const hasPerm = (sec: string) => permissions.includes(sec) || (sec === "packages" && (permissions.includes("packages") || permissions.includes("containers")));
@@ -102,9 +113,15 @@ function SidebarContent({ permissions = [], onNavClick, onLogout, userName, user
               </p>
               <ul className="space-y-0.5 px-3">
                 {items.map(item => (
-                  <NavItem key={item.href} href={item.href} icon={item.icon}
+                  <NavItem
+                    key={item.href}
+                    href={item.href}
+                    icon={item.icon}
                     label={item.section === "work_orders" && userRole === "driver" ? "مهامي" : item.label}
-                    onClick={onNavClick} />
+                    badge={item.section === "conversations" ? unreadConversations : item.section === "requests" ? pendingRequests : undefined}
+                    badgeColor={item.section === "conversations" ? "bg-rose-500" : "bg-emerald-500"}
+                    onClick={onNavClick}
+                  />
                 ))}
               </ul>
             </div>
@@ -158,18 +175,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [userRole, setUserRole] = useState("")
   const [userName, setUserName] = useState("")
   const [authLoading, setAuthLoading] = useState(true)
+  const [unreadConversations, setUnreadConversations] = useState(0)
+  const [pendingRequests, setPendingRequests] = useState(0)
+  const [isSoundMuted, setIsSoundMuted] = useState(() => localStorage.getItem("admin_sound_muted") === "true")
+  const lastUnreadConvRef = useRef<number | null>(null)
+  const lastPendingReqRef = useRef<number | null>(null)
+
+  const toggleSound = () => {
+    setIsSoundMuted(prev => {
+      const next = !prev
+      localStorage.setItem("admin_sound_muted", String(next))
+      return next
+    })
+  }
 
   useEffect(() => {
     const token = localStorage.getItem("admin_token")
     if (!token) { setLocation("/admin/login"); return }
 
-    // Load user info and permissions from API
     fetch(`${API_BASE}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => {
         if (!r.ok) {
-          // Any non-2xx response (401, 403, 502, etc.) → clear session and redirect
           localStorage.removeItem("admin_token")
           localStorage.removeItem("admin_role")
           localStorage.removeItem("admin_id")
@@ -190,7 +218,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setAuthLoading(false)
       })
       .catch(() => {
-        // Network error — clear session and redirect to login
         localStorage.removeItem("admin_token")
         localStorage.removeItem("admin_role")
         localStorage.removeItem("admin_id")
@@ -198,6 +225,66 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setLocation("/admin/login")
       })
   }, [setLocation])
+
+  useEffect(() => {
+    const token = localStorage.getItem("admin_token")
+    if (!token) return
+
+    // Request desktop notifications permission if not decided
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+      try { Notification.requestPermission() } catch {}
+    }
+
+    const pollBadges = async () => {
+      try {
+        const sRes = await fetch(`${API_BASE}/api/admin/sidebar-counts`)
+        if (sRes.ok) {
+          const data = await sRes.json()
+          const totalUnread = Number(data.unreadConversations || 0)
+          const pending = Number(data.pendingRequests || 0)
+
+          if (lastUnreadConvRef.current !== null && totalUnread > lastUnreadConvRef.current) {
+            const isMuted = localStorage.getItem("admin_sound_muted") === "true"
+            if (!isMuted) {
+              playNotificationChime()
+            }
+            try {
+              if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+                new Notification("💬 رسالة جديدة في المحادثات", {
+                  body: `لديك ${totalUnread} رسالة غير مقروءة في الدعم المباشر`,
+                  icon: "/favicon.svg",
+                })
+              }
+            } catch {}
+          }
+          lastUnreadConvRef.current = totalUnread
+
+          if (lastPendingReqRef.current !== null && pending > lastPendingReqRef.current) {
+            const isMuted = localStorage.getItem("admin_sound_muted") === "true"
+            if (!isMuted) {
+              playNotificationChime()
+            }
+            try {
+              if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+                new Notification("📦 طلب جديد وارد", {
+                  body: `لديك ${pending} طلب جديد قيد الانتظار`,
+                  icon: "/favicon.svg",
+                })
+              }
+            } catch {}
+          }
+          lastPendingReqRef.current = pending
+
+          setUnreadConversations(totalUnread)
+          setPendingRequests(pending)
+        }
+      } catch {}
+    }
+
+    pollBadges()
+    const timer = setInterval(pollBadges, 3000)
+    return () => clearInterval(timer)
+  }, [])
 
   const [location] = useLocation()
   useEffect(() => { setDrawerOpen(false) }, [location])
@@ -264,8 +351,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex w-60 xl:w-64 bg-primary text-white flex-col shrink-0 fixed inset-y-0 right-0 z-20">
-        <SidebarContent permissions={permissions} onLogout={handleLogout}
-          userName={userName} userRole={userRole} />
+        <SidebarContent
+          permissions={permissions}
+          onLogout={handleLogout}
+          userName={userName}
+          userRole={userRole}
+          unreadConversations={unreadConversations}
+          pendingRequests={pendingRequests}
+        />
       </aside>
 
       {/* Mobile Overlay */}
@@ -279,8 +372,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           className="absolute top-4 left-4 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-lg flex items-center justify-center transition-colors">
           <X size={18} className="text-white" />
         </button>
-        <SidebarContent permissions={permissions} onNavClick={() => setDrawerOpen(false)}
-          onLogout={handleLogout} userName={userName} userRole={userRole} />
+        <SidebarContent
+          permissions={permissions}
+          onNavClick={() => setDrawerOpen(false)}
+          onLogout={handleLogout}
+          userName={userName}
+          userRole={userRole}
+          unreadConversations={unreadConversations}
+          pendingRequests={pendingRequests}
+        />
       </aside>
 
       {/* Main */}
@@ -296,6 +396,35 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </h1>
           <AdminHeaderLogo />
           <div className="flex items-center gap-2 sm:gap-3">
+            {!isDriver && (
+              <button
+                onClick={toggleSound}
+                className={`w-9 h-9 rounded-xl flex items-center justify-center border transition-all ${
+                  isSoundMuted
+                    ? "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100"
+                    : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                }`}
+                title={isSoundMuted ? "الصوت مكتوم — اضغط للتفعيل" : "صوت الإشعارات مفعل — اضغط للكتم"}
+                aria-label="التحكم في صوت التنبيهات"
+              >
+                {isSoundMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+              </button>
+            )}
+            {!isDriver && (
+              <Link
+                href="/admin/conversations"
+                className="relative w-9 h-9 rounded-xl flex items-center justify-center border border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 transition-all cursor-pointer"
+                title={`المحادثات المباشرة${unreadConversations > 0 ? ` (${unreadConversations} غير مقروءة)` : ''}`}
+                aria-label="المحادثات المباشرة"
+              >
+                <MessageSquare size={17} />
+                {unreadConversations > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm animate-pulse leading-none">
+                    {unreadConversations > 99 ? '99+' : unreadConversations}
+                  </span>
+                )}
+              </Link>
+            )}
             {!isDriver && <NotificationBell />}
             {!isDriver && (
               <>

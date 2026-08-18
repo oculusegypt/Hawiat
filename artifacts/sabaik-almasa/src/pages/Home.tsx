@@ -205,7 +205,6 @@ function injectLocalBusinessSchema({
       }
     ]
   })
-
 }
 
 import { HeroSlider } from "@/components/home/HeroSlider"
@@ -383,7 +382,7 @@ export default function Home() {
       paymentMethods: siteSettings.paymentMethods,
       socialLinks: siteSettings.socialLinks,
     })
-    return () => { document.getElementById("home-local-business-schema")?.remove() }
+    return () => { document.getElementById("local-business-schema")?.remove() }
   }, [companyName, logoUrl, phoneWhatsapp, isLoaded])
 
   useEffect(() => {

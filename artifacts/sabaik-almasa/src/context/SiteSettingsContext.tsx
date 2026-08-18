@@ -154,29 +154,23 @@ export function replaceLegacyCompanyName(value: string, companyName: string): st
   if (!value) return value
   const resolvedName = (companyName || "").trim()
 
-  const patterns = [
-    /مؤسسة\s+سبائك\s+الماسة(\s+لتأجير\s+الحاويات(\s+ونقل\s+الأنقاض)?)?/g,
-    /شركة\s+سبائك\s+الماسة/g,
-    /سبائك\s+الماسة/g,
-    /حاويات\s+سبائك\s+الماسة/g,
-    /مؤسسة\s+السهم\s+كلين/g,
-    /شركة\s+السهم\s+كلين/g,
-    /السهم\s+كلين/g,
-    /منصة\s+حاويات/g,
-  ]
-
   let normalized = value
-  for (const pattern of patterns) {
-    normalized = normalized.replace(pattern, resolvedName || "خدمات الحاويات")
-  }
+    .replace(/مؤسسة\s+سبائك\s+الماسة(\s+لتأجير\s+الحاويات(\s+ونقل\s+الأنقاض)?)?/g, resolvedName || "خدمات تأجير الحاويات")
+    .replace(/شركة\s+سبائك\s+الماسة/g, resolvedName || "خدمات تأجير الحاويات")
+    .replace(/حاويات\s+سبائك\s+الماسة(\s+المتاحة)?/g, resolvedName ? `حاويات ${resolvedName}` : "الحاويات المتاحة")
+    .replace(/سبائك\s+الماسة/g, resolvedName || "تأجير الحاويات")
+    .replace(/مؤسسة\s+السهم\s+كلين(\s+لخدمات\s+التنظيف\s+بالرياض)?/g, resolvedName || "خدمات تأجير الحاويات")
+    .replace(/شركة\s+السهم\s+كلين/g, resolvedName || "خدمات تأجير الحاويات")
+    .replace(/السهم\s+كلين/g, resolvedName || "تأجير الحاويات")
 
   return normalized
 }
 
-function parseHomepageContent(raw: unknown): HomepageContent {
+function parseHomepageContent(raw: unknown, companyName = ""): HomepageContent {
   if (typeof raw !== "string" || !raw.trim()) return {}
   try {
-    const parsed = JSON.parse(raw)
+    const cleanStr = replaceLegacyCompanyName(raw, companyName)
+    const parsed = JSON.parse(cleanStr)
     return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as HomepageContent : {}
   } catch {
     return {}
@@ -227,51 +221,51 @@ async function fetchSettings(): Promise<SiteSettings> {
     try { localStorage.setItem("cached_company_name", compName) } catch {}
   }
 
-    return {
-      logoUrl: typeof data.company_logo === "string" ? data.company_logo.trim() : "",
-      companyName: compName,
-      description: typeof data.site_desc === "string" ? data.site_desc.trim() : "",
-      phones,
-      phoneCall: typeof data.company_phone_call === "string" ? data.company_phone_call.trim() : "",
-      phoneWhatsapp: typeof data.company_phone_whatsapp === "string" ? data.company_phone_whatsapp.trim() : "",
-      address: typeof data.company_address === "string" ? data.company_address.trim() : "",
-      city: typeof data.company_city === "string" ? data.company_city.trim() : "",
-      region: typeof data.company_region === "string" ? data.company_region.trim() : "",
-      country: typeof data.company_country === "string" ? data.company_country.trim() : "",
-      postalCode: typeof data.company_postal_code === "string" ? data.company_postal_code.trim() : "",
-      latitude: typeof data.company_latitude === "string" ? data.company_latitude.trim() : "",
-      longitude: typeof data.company_longitude === "string" ? data.company_longitude.trim() : "",
-      priceRange: typeof data.company_price_range === "string" ? data.company_price_range.trim() : "",
-      paymentMethods: typeof data.company_payment_methods === "string" ? data.company_payment_methods.trim() : "",
-      publicUrl: typeof data.site_public_url === "string" ? data.site_public_url.trim() : "",
-      socialLinks: {
-        facebook: typeof data.social_facebook === "string" ? data.social_facebook.trim() : "",
-        x: typeof data.social_x === "string" ? data.social_x.trim() : "",
-        instagram: typeof data.social_instagram === "string" ? data.social_instagram.trim() : "",
-        tiktok: typeof data.social_tiktok === "string" ? data.social_tiktok.trim() : "",
-        snapchat: typeof data.social_snapchat === "string" ? data.social_snapchat.trim() : "",
-        youtube: typeof data.social_youtube === "string" ? data.social_youtube.trim() : "",
-      },
-      supportStatus: typeof data.support_status === "string" ? data.support_status.trim() : "",
-      supportHours: typeof data.support_hours === "string" && data.support_hours.trim()
-        ? data.support_hours.trim()
-        : "",
-      email: typeof data.company_email === "string" ? data.company_email.trim() : "",
-      mapEmbed: data.company_map_embed || "",
-      footerDescription: typeof data.company_footer_description === "string"
-        ? replaceLegacyCompanyName(data.company_footer_description, compName)
-        : "",
-      homepageContent: parseHomepageContent(data.homepage_content),
-      statsItems: parseStatsItems(data.stats_items),
-      orderTrackingEnabled,
-      themePreset: (() => {
-        const p = typeof data.theme_preset === "string" && data.theme_preset.trim() ? data.theme_preset.trim() : "industrial_amber"
-        applyThemePreset(p)
-        return p
-      })(),
-      isLoaded: true,
-    }
+  return {
+    logoUrl: typeof data.company_logo === "string" ? data.company_logo.trim() : "",
+    companyName: compName,
+    description: typeof data.site_desc === "string" ? replaceLegacyCompanyName(data.site_desc.trim(), compName) : "",
+    phones,
+    phoneCall: typeof data.company_phone_call === "string" ? data.company_phone_call.trim() : "",
+    phoneWhatsapp: typeof data.company_phone_whatsapp === "string" ? data.company_phone_whatsapp.trim() : "",
+    address: typeof data.company_address === "string" ? data.company_address.trim() : "",
+    city: typeof data.company_city === "string" ? data.company_city.trim() : "",
+    region: typeof data.company_region === "string" ? data.company_region.trim() : "",
+    country: typeof data.company_country === "string" ? data.company_country.trim() : "",
+    postalCode: typeof data.company_postal_code === "string" ? data.company_postal_code.trim() : "",
+    latitude: typeof data.company_latitude === "string" ? data.company_latitude.trim() : "",
+    longitude: typeof data.company_longitude === "string" ? data.company_longitude.trim() : "",
+    priceRange: typeof data.company_price_range === "string" ? data.company_price_range.trim() : "",
+    paymentMethods: typeof data.company_payment_methods === "string" ? data.company_payment_methods.trim() : "",
+    publicUrl: typeof data.site_public_url === "string" ? data.site_public_url.trim() : "",
+    socialLinks: {
+      facebook: typeof data.social_facebook === "string" ? data.social_facebook.trim() : "",
+      x: typeof data.social_x === "string" ? data.social_x.trim() : "",
+      instagram: typeof data.social_instagram === "string" ? data.social_instagram.trim() : "",
+      tiktok: typeof data.social_tiktok === "string" ? data.social_tiktok.trim() : "",
+      snapchat: typeof data.social_snapchat === "string" ? data.social_snapchat.trim() : "",
+      youtube: typeof data.social_youtube === "string" ? data.social_youtube.trim() : "",
+    },
+    supportStatus: typeof data.support_status === "string" ? data.support_status.trim() : "",
+    supportHours: typeof data.support_hours === "string" && data.support_hours.trim()
+      ? data.support_hours.trim()
+      : "",
+    email: typeof data.company_email === "string" ? data.company_email.trim() : "",
+    mapEmbed: data.company_map_embed || "",
+    footerDescription: typeof data.company_footer_description === "string"
+      ? replaceLegacyCompanyName(data.company_footer_description, compName)
+      : "",
+    homepageContent: parseHomepageContent(data.homepage_content, compName),
+    statsItems: parseStatsItems(data.stats_items),
+    orderTrackingEnabled,
+    themePreset: (() => {
+      const p = typeof data.theme_preset === "string" && data.theme_preset.trim() ? data.theme_preset.trim() : "industrial_amber"
+      applyThemePreset(p)
+      return p
+    })(),
+    isLoaded: true,
   }
+}
 
 export function SiteSettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<SiteSettings>(() => {

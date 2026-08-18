@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Phone, MessageSquare, Send, User, CheckCircle, Loader2, ArrowRight,
-  Headphones, X, Sparkles, PhoneCall, Paperclip, MapPin, Camera, ExternalLink
+  Headphones, X, Sparkles, PhoneCall, Paperclip, MapPin, Camera, ExternalLink,
+  Volume2, VolumeX
 } from "lucide-react"
 import { FaWhatsapp } from "react-icons/fa"
 import { Button } from "@/components/ui/button"
@@ -11,6 +12,7 @@ import { useSiteSettings } from "@/context/SiteSettingsContext"
 import { useGetContainers, useGetConversation } from "@workspace/api-client-react"
 import type { Container } from "@workspace/api-client-react"
 import { PackageFormMessage } from "@/components/chat/PackageFormMessage"
+import { playNotificationChime } from "@/lib/visitorAttribution"
 
 const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || ""
 
@@ -245,25 +247,77 @@ function ContactForm({ onStartChat, phones, phoneCall, phoneWhatsapp, supportHou
 
 // ─── Chat Interface ────────────────────────────────────────────────────────────
 
-function ChatInterface({ conversationId, clientName, phone, packageName }: {
+function ChatInterface({ conversationId, clientName, phone, packageName, isSoundMuted = false }: {
   conversationId: number
   clientName: string
   phone: string
   packageName?: string
+  isSoundMuted?: boolean
 }) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [sending, setSending] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [isAdminTyping, setIsAdminTyping] = useState(false)
   const galleryRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const lastAdminMsgIdRef = useRef<number>(0)
+  const isInitialLoadRef = useRef(true)
+
+  const lastClientTypingRef = useRef<number>(0)
+  const sendClientTypingPing = useCallback((id: number) => {
+    const now = Date.now()
+    if (now - lastClientTypingRef.current < 2500) return
+    lastClientTypingRef.current = now
+    fetch(`${API_BASE}/api/conversations/${id}/typing`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ senderType: "client", isTyping: true }),
+    }).catch(() => {})
+  }, [])
 
   const loadMessages = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/conversations/${conversationId}/messages`)
-      const data = await res.json()
-      if (Array.isArray(data)) setMessages(data)
+      const [resMsg, resConv] = await Promise.allSettled([
+        fetch(`${API_BASE}/api/conversations/${conversationId}/messages`),
+        fetch(`${API_BASE}/api/conversations/${conversationId}`)
+      ])
+
+      if (resConv.status === "fulfilled" && resConv.value.ok) {
+        const cData = await resConv.value.json()
+        setIsAdminTyping(Boolean(cData?.isAdminTyping))
+      }
+
+      if (resMsg.status === "fulfilled" && resMsg.value.ok) {
+        const data = await resMsg.value.json()
+        const msgList: Message[] = Array.isArray(data) ? data : (Array.isArray(data?.messages) ? data.messages : [])
+        setMessages(msgList)
+
+        // Find latest message from admin
+        const adminMsgs = msgList.filter((m: Message) => m.senderType === "admin")
+        if (adminMsgs.length > 0) {
+          const latestAdminMsg = adminMsgs[adminMsgs.length - 1]
+          if (latestAdminMsg && latestAdminMsg.id > lastAdminMsgIdRef.current) {
+            if (!isInitialLoadRef.current) {
+              const isMuted = localStorage.getItem("chat_sound_muted") === "true"
+              if (!isMuted) {
+                playNotificationChime()
+              }
+              try {
+                if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+                  new Notification("💬 الدعم المباشر", {
+                    body: latestAdminMsg.content || "أرسل لك الدعم رسالة جديدة",
+                    icon: "/favicon.svg",
+                  })
+                }
+              } catch {}
+            }
+            lastAdminMsgIdRef.current = latestAdminMsg.id
+          }
+        }
+        isInitialLoadRef.current = false
+      }
     } catch {}
   }, [conversationId])
 
@@ -275,7 +329,14 @@ function ChatInterface({ conversationId, clientName, phone, packageName }: {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+  }, [messages, isAdminTyping])
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value)
+    if (conversationId) {
+      sendClientTypingPing(conversationId)
+    }
+  }
 
   async function handleSend(e?: React.FormEvent) {
     e?.preventDefault()
@@ -424,6 +485,19 @@ function ChatInterface({ conversationId, clientName, phone, packageName }: {
             </motion.div>
           )
         })}
+        {isAdminTyping && (
+          <div className="flex justify-start mb-2 animate-in fade-in slide-in-from-bottom-2">
+            <div className="bg-gray-100 text-gray-700 rounded-2xl rounded-tr-none px-3.5 py-2 text-xs flex items-center gap-2 border border-gray-200 shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              <span className="font-bold text-gray-800">الدعم الفني يكتب الآن</span>
+              <span className="inline-flex gap-1 items-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: "150ms" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: "300ms" }} />
+              </span>
+            </div>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
 
@@ -436,7 +510,7 @@ function ChatInterface({ conversationId, clientName, phone, packageName }: {
         <button type="button" title="إرسال الموقع" onClick={sendLocation} disabled={uploading} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:border-primary hover:text-primary disabled:opacity-40"><MapPin size={16} /></button>
         <input
           value={input}
-          onChange={e => setInput(e.target.value)}
+          onChange={handleInputChange}
           placeholder="اكتب رسالتك..."
           className="flex-1 px-4 py-2.5 text-sm rounded-full bg-gray-50 border border-gray-200 outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20"
           disabled={sending}
@@ -502,9 +576,27 @@ export function LiveSupportChat({ onClose }: LiveSupportChatProps) {
   const [clientName, setClientName] = useState(saved?.clientName ?? "")
   const [phone, setPhone] = useState(saved?.phone ?? "")
   const [packageName, setPackageName] = useState(saved?.packageName ?? "")
+  const [isSoundMuted, setIsSoundMuted] = useState(() => localStorage.getItem("chat_sound_muted") === "true")
   const { data: conversation } = useGetConversation(conversationId as number, {
     query: { enabled: !!conversationId } as any,
   })
+
+  const toggleSound = () => {
+    setIsSoundMuted(prev => {
+      const next = !prev
+      localStorage.setItem("chat_sound_muted", String(next))
+      return next
+    })
+  }
+
+  useEffect(() => {
+    // Request notification permission politely
+    try {
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission()
+      }
+    } catch {}
+  }, [])
 
   useEffect(() => {
     if (!conversation) return
@@ -527,6 +619,11 @@ export function LiveSupportChat({ onClose }: LiveSupportChatProps) {
     setPhone(customerPhone)
     setPackageName(selectedPackageName)
     setStage("chat")
+    try {
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission()
+      }
+    } catch {}
   }
 
   function handleNewConversation() {
@@ -566,6 +663,14 @@ export function LiveSupportChat({ onClose }: LiveSupportChatProps) {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            onClick={toggleSound}
+            className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white/85 transition-colors hover:bg-white/20 hover:text-white"
+            title={isSoundMuted ? "الصوت مكتوم — اضغط للتفعيل" : "صوت الإشعارات مفعل — اضغط للكتم"}
+            aria-label="التحكم في صوت التنبيهات"
+          >
+            {isSoundMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+          </button>
            {stage === "chat" && (
              <>
                {callNumber && (
@@ -631,8 +736,9 @@ export function LiveSupportChat({ onClose }: LiveSupportChatProps) {
                <ChatInterface
                  conversationId={conversationId}
                  clientName={clientName}
-                  phone={phone}
+                 phone={phone}
                  packageName={packageName}
+                 isSoundMuted={isSoundMuted}
                />
             )}
           </motion.div>

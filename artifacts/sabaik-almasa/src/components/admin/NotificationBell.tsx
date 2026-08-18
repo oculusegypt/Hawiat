@@ -208,6 +208,7 @@ interface Notification {
 
 function playNotificationSound() {
   try {
+    if (localStorage.getItem("admin_sound_muted") === "true" || localStorage.getItem("sound_muted") === "true") return
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
     if (!AudioCtx) return
     const ctx = new AudioCtx()

@@ -13,6 +13,7 @@ import { LiveSupportChat } from "./LiveSupportChat"
 import { getHighAccuracyPosition } from "@/lib/reverseGeocode"
 import { DraggableMapPicker } from "@/components/ui/DraggableMapPicker"
 import { useSiteSettings } from "@/context/SiteSettingsContext"
+import { playNotificationChime, sendVisitorHeartbeat, getKnownCustomerInfo } from "@/lib/visitorAttribution"
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -889,6 +890,8 @@ export function AIChatbotWidget({ onOpenChange }: { onOpenChange?: (open: boolea
   const [liveChatOpen,  setLiveChatOpen]  = useState(false)
   const [supportStatus, setSupportStatus] = useState("unavailable")
   const [requestsLocked, setRequestsLocked] = useState(false)
+  const [incomingSupportNotice, setIncomingSupportNotice] = useState<{ content: string; convId: number } | null>(null)
+  const lastSeenMsgIdRef = useRef<number>(0)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef       = useRef<HTMLInputElement>(null)
@@ -897,7 +900,7 @@ export function AIChatbotWidget({ onOpenChange }: { onOpenChange?: (open: boolea
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50)
   }, [])
 
-  // Fetch settings every 60s
+  // 1. Fetch settings every 60s
   useEffect(() => {
     const load = () =>
       fetchSettings().then((s) => {
@@ -907,6 +910,62 @@ export function AIChatbotWidget({ onOpenChange }: { onOpenChange?: (open: boolea
     load()
     const id = setInterval(load, 60000)
     return () => clearInterval(id)
+  }, [])
+
+  // 2. Heartbeat Presence loop every 15s
+  useEffect(() => {
+    sendVisitorHeartbeat()
+    const hbInterval = setInterval(() => {
+      sendVisitorHeartbeat()
+    }, 15000)
+    return () => clearInterval(hbInterval)
+  }, [])
+
+  // 3. Real-time Unread Support Messages Listener with Sound & System Notification
+  useEffect(() => {
+    const checkUnread = async () => {
+      try {
+        const known = getKnownCustomerInfo()
+        const convId = known.conversationId || Number(sessionStorage.getItem("support_conversation_id") || "0")
+        const phone = known.phone || sessionStorage.getItem("customer_phone") || ""
+        if (!convId && !phone) return
+
+        const query = new URLSearchParams()
+        if (convId) query.set("conversationId", String(convId))
+        if (phone) query.set("phone", phone)
+
+        const res = await fetch(`${API_BASE}/api/visitor/unread-messages?${query.toString()}`)
+        const data = await res.json()
+
+        if (data && data.unreadCount > 0 && Array.isArray(data.messages) && data.messages.length > 0) {
+          const latest = data.messages[data.messages.length - 1]
+          if (latest && latest.id > lastSeenMsgIdRef.current) {
+            lastSeenMsgIdRef.current = latest.id
+            // Play notification chime sound
+            playNotificationChime()
+            // Set floating alert notice
+            setIncomingSupportNotice({
+              content: latest.content || "لديك رسالة جديدة من فريق الدعم المباشر",
+              convId: data.conversationId || convId,
+            })
+            setUnread((prev) => prev + data.unreadCount)
+
+            // Trigger native browser notification if supported and granted
+            try {
+              if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+                new Notification("💬 منصة حاويات — الدعم المباشر", {
+                  body: latest.content || "أرسل لك فريق الدعم رسالة جديدة / تأكيد طلب باقة",
+                  icon: "/favicon.svg",
+                })
+              }
+            } catch {}
+          }
+        }
+      } catch {}
+    }
+
+    const unreadInterval = setInterval(checkUnread, 4000)
+    return () => clearInterval(unreadInterval)
   }, [])
 
   const botDisabled = supportStatus === "available"
@@ -1223,6 +1282,50 @@ export function AIChatbotWidget({ onOpenChange }: { onOpenChange?: (open: boolea
                  <p className="text-[10px] text-gray-300">مدعوم بالذكاء الاصطناعي · {companyName}</p>
               </div>
             ) : null}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating Support Message Alert Bubble with Sound */}
+      <AnimatePresence>
+        {incomingSupportNotice && !isAnyOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 15, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.9 }}
+            className="fixed bottom-24 left-4 sm:left-6 z-[70] max-w-xs bg-slate-950/95 text-white p-3.5 rounded-2xl shadow-2xl border border-emerald-500/40 backdrop-blur-md flex items-start gap-3 cursor-pointer group"
+            onClick={() => {
+              setIncomingSupportNotice(null)
+              if (botDisabled) {
+                setLiveChatOpen(true)
+              } else {
+                setLiveChatOpen(true)
+              }
+            }}
+          >
+            <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+              <Headphones size={18} className="animate-bounce" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-black text-emerald-400">رسالة من الدعم المباشر</p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIncomingSupportNotice(null)
+                  }}
+                  className="text-gray-400 hover:text-white p-0.5"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+              <p className="text-xs text-gray-200 mt-1 line-clamp-2 leading-relaxed font-medium">
+                {incomingSupportNotice.content}
+              </p>
+              <span className="text-[10px] text-emerald-300 font-bold mt-1.5 inline-block group-hover:underline">
+                انقر لفتح المحادثة والرد ←
+              </span>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState } from "react"
 
-interface Preselect {
+export interface Preselect {
   serviceType?: string
   containerSize?: string
   containerName?: string
@@ -9,9 +9,12 @@ interface Preselect {
   phone?: string
 }
 
-interface ServiceRequestContextType {
+export interface ServiceRequestContextType {
   isOpen: boolean
   preselect: Preselect
+  preselectedService?: string
+  preselectedContainerSize?: string
+  preselectedContainerName?: string
   openModal: (preselect?: Preselect) => void
   closeModal: () => void
 }
@@ -38,7 +41,17 @@ export function ServiceRequestProvider({ children }: { children: React.ReactNode
   }
 
   return (
-    <ServiceRequestContext.Provider value={{ isOpen, preselect, openModal, closeModal }}>
+    <ServiceRequestContext.Provider
+      value={{
+        isOpen,
+        preselect,
+        preselectedService: preselect.serviceType,
+        preselectedContainerSize: preselect.containerSize,
+        preselectedContainerName: preselect.containerName,
+        openModal,
+        closeModal,
+      }}
+    >
       {children}
     </ServiceRequestContext.Provider>
   )

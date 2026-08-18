@@ -225,23 +225,59 @@ export default function RequestDetailModal({ request, open, onClose }: Props) {
 
             {/* ── Client Card ── */}
             <SectionCard
-              title="بيانات العميل"
+              title="بيانات وتواجد العميل"
               icon={<User className="w-4 h-4" />}
               color="text-indigo-600"
               bg="bg-indigo-50"
             >
+              {(request as any).isOnline ? (
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 mb-3 shadow-xs">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping inline-block" />
+                    <div>
+                      <span className="text-xs font-black text-emerald-900 block">العميل متصل الآن بالموقع 🟢</span>
+                      {(request as any).activePage && (
+                        <span className="text-[11px] text-emerald-700">يتصفح حالياً: {(request as any).activePage}</span>
+                      )}
+                    </div>
+                  </div>
+                  <a
+                    href={`/admin/conversations?open=${(request as any).conversationId || ""}`}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5"
+                  >
+                    <MessageCircle size={14} /> محادثة فورية 🟢
+                  </a>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-2xl bg-gray-50 border border-gray-100 text-gray-500 mb-3 text-xs flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-gray-300 inline-block" />
+                  <span>العميل غير متصل بالموقع حالياً ⚪</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <InfoCell icon={<User className="w-4 h-4 text-indigo-400" />} label="الاسم الكامل">
                   <span className="font-semibold text-gray-900">{request.clientName}</span>
                 </InfoCell>
                 <InfoCell icon={<Phone className="w-4 h-4 text-green-500" />} label="رقم الجوال">
-                  <a
-                    href={`tel:${request.phone}`}
-                    dir="ltr"
-                    className="font-semibold text-green-700 hover:underline"
-                  >
-                    {request.phone}
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={`tel:${request.phone}`}
+                      dir="ltr"
+                      className="font-semibold text-green-700 hover:underline"
+                    >
+                      {request.phone}
+                    </a>
+                    {(request as any).isOnline && (
+                      <a
+                        href={`/admin/conversations?open=${(request as any).conversationId || ""}`}
+                        className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors"
+                        title="مراسلة العميل المتصل الآن"
+                      >
+                        <MessageCircle size={13} /> محادثة
+                      </a>
+                    )}
+                  </div>
                 </InfoCell>
                 {request.email && (
                   <InfoCell icon={<Mail className="w-4 h-4 text-blue-400" />} label="البريد الإلكتروني">

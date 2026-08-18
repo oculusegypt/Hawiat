@@ -22,6 +22,15 @@ interface PackageFormMetadata {
 
 interface OrderConfirmationMetadata {
   requestId?: number
+  orderId?: number
+  clientName?: string
+  phone?: string
+  serviceType?: string
+  containerSize?: string
+  location?: string
+  duration?: string
+  appointmentType?: string
+  scheduledAt?: string
 }
 
 function parseMetadata<T>(value?: string | null): T | null {
@@ -39,25 +48,59 @@ export function PackageFormMessage({ messageType, metadata, viewer, clientName, 
 
   if (messageType === "order_confirmation") {
     const confirmation = parseMetadata<OrderConfirmationMetadata>(metadata)
+    const reqId = confirmation?.orderId || confirmation?.requestId
     return (
       <div
-        data-testid={`card-order-confirmation-${confirmation?.requestId ?? "unknown"}`}
-        className="w-full rounded-2xl border border-green-200 bg-green-50 p-4 text-green-900"
+        data-testid={`card-order-confirmation-${reqId ?? "unknown"}`}
+        className="w-full rounded-2xl border-2 border-emerald-300 bg-emerald-50/90 p-4 text-emerald-950 shadow-sm space-y-2.5"
       >
-        <div className="flex items-start gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-600">
-            <CheckCircle2 size={19} />
+        <div className="flex items-start gap-3 border-b border-emerald-200/60 pb-2.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-sm">
+            <CheckCircle2 size={20} />
           </span>
-          <div>
-            <p className="text-sm font-bold">تم تأكيد طلب الخدمة</p>
-            {confirmation?.requestId && (
-              <p data-testid={`text-chat-order-id-${confirmation.requestId}`} className="mt-1 text-xs text-green-700">
-                رقم الطلب: <strong>#{confirmation.requestId}</strong>
-              </p>
-            )}
-            <p className="mt-1 text-xs text-green-700">سيتواصل معك فريق الدعم لتأكيد التفاصيل.</p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-extrabold text-emerald-900">ملخص تأكيد طلب الحاوية</p>
+              {reqId && (
+                <span className="bg-emerald-600 text-white text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full shadow-xs">
+                  #{reqId}
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 text-xs text-emerald-700 font-medium">تم إرسال بيانات الطلب لفريق العمليات بنجاح</p>
           </div>
         </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+          {(confirmation?.serviceType || confirmation?.containerSize) && (
+            <div className="bg-white/80 rounded-xl p-2 border border-emerald-100">
+              <span className="text-[10px] text-gray-500 block">الحاوية المطلوبة:</span>
+              <span className="font-bold text-gray-900">{confirmation?.serviceType} {confirmation?.containerSize ? `— ${confirmation.containerSize}` : ""}</span>
+            </div>
+          )}
+          {(confirmation?.clientName || confirmation?.phone) && (
+            <div className="bg-white/80 rounded-xl p-2 border border-emerald-100">
+              <span className="text-[10px] text-gray-500 block">بيانات العميل:</span>
+              <span className="font-bold text-gray-900">{confirmation?.clientName || "عميل"} {confirmation?.phone ? `(${confirmation.phone})` : ""}</span>
+            </div>
+          )}
+          {confirmation?.location && (
+            <div className="bg-white/80 rounded-xl p-2 border border-emerald-100 col-span-full">
+              <span className="text-[10px] text-gray-500 block">الموقع المحدد:</span>
+              <span className="font-bold text-gray-900">{confirmation.location}</span>
+            </div>
+          )}
+        </div>
+
+        {reqId && (
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent("openTrackingModal", { detail: String(reqId) }))}
+            className="w-full mt-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+          >
+            تتبع حالة الطلب الفوري ←
+          </button>
+        )}
       </div>
     )
   }

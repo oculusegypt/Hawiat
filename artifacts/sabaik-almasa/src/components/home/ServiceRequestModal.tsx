@@ -10,9 +10,8 @@ import { Input } from "@/components/ui/input"
 import { useServiceRequest } from "@/context/ServiceRequestContext"
 import { useSiteSettings } from "@/context/SiteSettingsContext"
 import { DraggableMapPicker } from "@/components/ui/DraggableMapPicker"
-import { getHighAccuracyPosition } from "@/lib/reverseGeocode"
 import { useGetContainers } from "@workspace/api-client-react"
-import { getVisitorTracking } from "@/lib/visitorAttribution"
+import { getVisitorTracking, sendVisitorHeartbeat } from "@/lib/visitorAttribution"
 import { SERVICE_TYPES, DEBRIS_CONTAINERS, WASTE_CONTAINERS } from "@/components/request-modal/constants"
 import { getContainerValue, getContainersForService } from "@/lib/packageOptions"
 
@@ -101,15 +100,7 @@ function LocationPicker({ value, onChange }: { value: string; onChange: (v: stri
 }
 
 export function ServiceRequestModal() {
-  const {
-    isOpen,
-    preselect: {
-      serviceType: preselectedService,
-      containerSize: preselectedContainerSize,
-      containerName: preselectedContainerName,
-    },
-    closeModal,
-  } = useServiceRequest()
+  const { isOpen, preselect, preselectedService, preselectedContainerSize, preselectedContainerName, closeModal } = useServiceRequest()
   const { companyName, phoneWhatsapp, phoneCall, orderTrackingEnabled } = useSiteSettings()
   const { data: apiContainers } = useGetContainers()
 
@@ -133,25 +124,26 @@ export function ServiceRequestModal() {
   // Sync preselected options when modal opens
   useEffect(() => {
     if (isOpen) {
-      const initService = preselectedService || "حاويات الأنقاض"
+      const initService = preselect?.serviceType || preselectedService || "حاويات الأنقاض"
+      const initContainer = preselect?.containerSize || preselect?.containerName || preselectedContainerSize || preselectedContainerName || ""
       setServiceType(initService)
-      setContainerSize(preselectedContainerSize || preselectedContainerName || "")
+      setContainerSize(initContainer)
       setAppointmentType("immediate")
       setLocation("")
-      setClientName("")
-      setPhone("")
+      setClientName(preselect?.clientName || "")
+      setPhone(preselect?.phone || "")
       setEmail("")
       setNotes("")
       setErrors({})
       setOrderId(null)
 
-      if (preselectedContainerSize || preselectedContainerName) {
+      if (initContainer || preselect?.serviceType || preselectedService) {
         setStep("details")
       } else {
         setStep("service")
       }
     }
-  }, [isOpen, preselectedService, preselectedContainerSize, preselectedContainerName])
+  }, [isOpen, preselect, preselectedService, preselectedContainerSize, preselectedContainerName])
 
   if (!isOpen) return null
 
@@ -217,8 +209,51 @@ export function ServiceRequestModal() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "فشل إرسال الطلب")
 
-      setOrderId(String(data.id || ""))
+      const newOrderId = String(data.id || "")
+      setOrderId(newOrderId)
       setStep("success")
+
+      // Save customer info and order ID for presence tracking & chat sync
+      try {
+        sessionStorage.setItem("customer_name", clientName.trim())
+        sessionStorage.setItem("customer_phone", normalizePhone(phone))
+        sessionStorage.setItem("last_order_id", newOrderId)
+      } catch {}
+
+      // Notify visitor heartbeat
+      sendVisitorHeartbeat({
+        clientName: clientName.trim(),
+        phone: normalizePhone(phone),
+        lastOrderId: Number(newOrderId)
+      })
+
+      // Send order summary into support conversation if active or preselected
+      const convId = preselect?.conversationId || Number(sessionStorage.getItem("support_conversation_id") || "0")
+      if (convId) {
+        try {
+          await fetch(`${API_BASE}/api/conversations/${convId}/messages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: `📋 تأكيد طلب الحاوية #${newOrderId} - ${serviceType} ${containerSize}`,
+              senderType: "client",
+              messageType: "order_confirmation",
+              metadata: JSON.stringify({
+                requestId: Number(newOrderId),
+                orderId: Number(newOrderId),
+                clientName: clientName.trim(),
+                phone: normalizePhone(phone),
+                serviceType: serviceType || "حاويات الأنقاض",
+                containerSize: containerSize || "",
+                location: location.trim(),
+                duration: duration || "يومي (رد واحد)",
+                appointmentType,
+                scheduledAt
+              }),
+            }),
+          })
+        } catch {}
+      }
     } catch (err: any) {
       setErrors({ submit: err.message || "حدث خطأ أثناء إرسال الطلب، يرجى المحاولة مرة أخرى." })
     } finally {

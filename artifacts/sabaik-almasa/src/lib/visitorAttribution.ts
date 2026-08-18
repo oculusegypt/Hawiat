@@ -81,3 +81,114 @@ export function getVisitorTracking(): VisitorTracking {
     gclid: stored?.gclid || "",
   }
 }
+
+// ─── Web Audio API Notification Chime ─────────────────────────────────────────
+let audioCtx: AudioContext | null = null
+
+export function playNotificationChime(storageKey?: string) {
+  try {
+    if (storageKey && localStorage.getItem(storageKey) === "true") return
+    if (typeof window !== "undefined") {
+      const isAdmin = window.location.pathname.startsWith("/admin")
+      if (isAdmin && (localStorage.getItem("admin_sound_muted") === "true" || localStorage.getItem("sound_muted") === "true")) return
+      if (!isAdmin && (localStorage.getItem("chat_sound_muted") === "true" || localStorage.getItem("sound_muted") === "true")) return
+    }
+
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext
+    if (!AudioContextClass) return
+
+    if (!audioCtx || audioCtx.state === "closed") {
+      audioCtx = new AudioContextClass()
+    }
+
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume()
+    }
+
+    const now = audioCtx.currentTime
+
+    // Tone 1 (High bell chime)
+    const osc1 = audioCtx.createOscillator()
+    const gain1 = audioCtx.createGain()
+    osc1.type = "sine"
+    osc1.frequency.setValueAtTime(587.33, now) // D5
+    osc1.frequency.exponentialRampToValueAtTime(880, now + 0.08) // A5
+    gain1.gain.setValueAtTime(0, now)
+    gain1.gain.linearRampToValueAtTime(0.3, now + 0.02)
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.4)
+    osc1.connect(gain1)
+    gain1.connect(audioCtx.destination)
+    osc1.start(now)
+    osc1.stop(now + 0.4)
+
+    // Tone 2 (Harmonic sweet note)
+    const osc2 = audioCtx.createOscillator()
+    const gain2 = audioCtx.createGain()
+    osc2.type = "sine"
+    osc2.frequency.setValueAtTime(880, now + 0.08) // A5
+    osc2.frequency.exponentialRampToValueAtTime(1174.66, now + 0.16) // D6
+    gain2.gain.setValueAtTime(0, now + 0.08)
+    gain2.gain.linearRampToValueAtTime(0.35, now + 0.12)
+    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.6)
+    osc2.connect(gain2)
+    gain2.connect(audioCtx.destination)
+    osc2.start(now + 0.08)
+    osc2.stop(now + 0.6)
+  } catch (err) {
+    console.debug("Notification chime suppressed:", err)
+  }
+}
+
+// ─── Heartbeat Sender ──────────────────────────────────────────────────────────
+export function getKnownCustomerInfo() {
+  try {
+    let name = sessionStorage.getItem("customer_name") || localStorage.getItem("customer_name") || ""
+    let phone = sessionStorage.getItem("customer_phone") || localStorage.getItem("customer_phone") || ""
+    let convId = Number(sessionStorage.getItem("support_conversation_id") || localStorage.getItem("support_conversation_id") || "0")
+    let orderId = Number(sessionStorage.getItem("last_order_id") || localStorage.getItem("last_order_id") || "0")
+
+    const sessionKeys = ["sabaik_live_chat_session", "hawiat_live_chat_session", "alsahm_live_chat_session", "cleanflow_live_chat_session"]
+    for (const key of sessionKeys) {
+      const chatRaw = localStorage.getItem(key)
+      if (chatRaw) {
+        try {
+          const parsed = JSON.parse(chatRaw)
+          if (parsed.clientName && !name) name = parsed.clientName
+          if (parsed.phone && !phone) phone = parsed.phone
+          if (parsed.conversationId && !convId) convId = Number(parsed.conversationId)
+        } catch {}
+      }
+    }
+
+    return {
+      clientName: name || undefined,
+      phone: phone || undefined,
+      conversationId: convId || undefined,
+      lastOrderId: orderId || undefined,
+    }
+  } catch {
+    return {}
+  }
+}
+
+export async function sendVisitorHeartbeat(extra: { clientName?: string; phone?: string; conversationId?: number; lastOrderId?: number } = {}) {
+  try {
+    const tracking = getVisitorTracking()
+    const known = getKnownCustomerInfo()
+    const API_BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") || ""
+    const payload = {
+      sessionId: tracking.sessionId,
+      page: window.location.pathname,
+      deviceType: window.innerWidth < 768 ? "mobile" : "desktop",
+      clientName: extra.clientName || known.clientName,
+      phone: extra.phone || known.phone,
+      conversationId: extra.conversationId || known.conversationId,
+      lastOrderId: extra.lastOrderId || known.lastOrderId,
+    }
+    await fetch(`${API_BASE}/api/visitor/heartbeat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+  } catch {}
+}

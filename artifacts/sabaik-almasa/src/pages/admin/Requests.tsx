@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { format } from "date-fns"
 import { arSA } from "date-fns/locale"
-import { Eye, Pencil, Trash2, Plus, TrendingUp, Clock, CheckCircle2, XCircle, ListOrdered, CalendarClock, BarChart2, Star } from "lucide-react"
+import { Eye, Pencil, Trash2, Plus, TrendingUp, Clock, CheckCircle2, XCircle, ListOrdered, CalendarClock, BarChart2, Star, MessageCircle } from "lucide-react"
 import RequestDetailModal from "@/components/admin/RequestDetailModal"
 import RequestFormModal from "@/components/admin/RequestFormModal"
 import { RequestsStatsGrid } from "@/components/admin/requests/RequestsStatsGrid"
@@ -138,6 +138,23 @@ export default function AdminRequests() {
     const request = requests.find(item => item.id === openId)
     if (request) setSelected(request)
   }, [requests])
+
+  // Periodic Auto-refetch for live online presence (every 6 seconds)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      refetch()
+    }, 6000)
+    return () => clearInterval(timer)
+  }, [refetch])
+
+  // Keep selectedRequest updated with live status if modal is open
+  useEffect(() => {
+    if (!selectedRequest || !requests) return
+    const found = requests.find(r => r.id === selectedRequest.id)
+    if (found && ((found as any).isOnline !== (selectedRequest as any).isOnline || (found as any).activePage !== (selectedRequest as any).activePage)) {
+      setSelected(found)
+    }
+  }, [requests, selectedRequest])
 
   useEffect(() => {
     const token = localStorage.getItem("admin_token") ?? ""
@@ -413,7 +430,22 @@ export default function AdminRequests() {
                       className={`border-b last:border-0 transition-colors ${st.row} ${st.left}`}
                     >
                       <td className="p-4 font-mono text-gray-500">#{req.id}</td>
-                      <td className="p-4 font-bold text-gray-900">{req.clientName}</td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-gray-900">{req.clientName}</span>
+                          {(req as any).isOnline && (
+                            <span
+                              className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping inline-block"
+                              title={`متصل الآن بالموقع ${(req as any).activePage ? `(يتصفح: ${(req as any).activePage})` : ""}`}
+                            />
+                          )}
+                        </div>
+                        {(req as any).isOnline && (
+                          <span className="text-[10px] font-bold text-emerald-600 block mt-0.5">
+                            متصل الآن 🟢
+                          </span>
+                        )}
+                      </td>
                        <td className="p-4 min-w-[190px]">
                          <div className="space-y-2">
                            <select
@@ -470,6 +502,16 @@ export default function AdminRequests() {
                             <Eye className="w-3.5 h-3.5" />
                             عرض
                           </Button>
+                          {(req as any).isOnline && (
+                            <a
+                              href={`/admin/conversations?open=${(req as any).conversationId || ""}`}
+                              className="h-8 px-2.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold inline-flex items-center gap-1 transition-colors shadow-xs animate-pulse"
+                              title="العميل متصل الآن بالموقع — فتح محادثة فورية"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                              محادثة 🟢
+                            </a>
+                          )}
                           <Button
                             variant="outline" size="sm"
                             className="h-8 gap-1 text-xs text-blue-700 border-blue-200 hover:bg-blue-50"

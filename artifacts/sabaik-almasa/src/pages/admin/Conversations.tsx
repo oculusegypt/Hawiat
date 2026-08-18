@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { useGetConversations, useGetMessages, useSendMessage, useUpdateConversation, useGetContainers } from "@workspace/api-client-react"
 import { MessageSenderType, MessageInputSenderType, MessageInputMessageType, ConversationUpdateStatus } from "@workspace/api-client-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Send, User, CheckCircle2, Clock, MessageSquare, Trash2, AlertTriangle, Package, MapPin } from "lucide-react"
+import { Send, User, CheckCircle2, Clock, MessageSquare, Trash2, AlertTriangle, Package, MapPin, Phone } from "lucide-react"
 import { FaWhatsapp } from "react-icons/fa"
 import { useToast } from "@/hooks/use-toast"
 import { useSiteSettings } from "@/context/SiteSettingsContext"
@@ -53,6 +53,7 @@ export default function AdminConversations() {
   const { data: messages, refetch: refetchMsgs } = useGetMessages(selectedId as number, {
     query: { enabled: !!selectedId, refetchInterval: 3000 } as any,
   })
+  const messageList = Array.isArray(messages) ? messages : (Array.isArray((messages as any)?.messages) ? (messages as any).messages : [])
 
   const { mutate: sendMsg } = useSendMessage()
   const { mutate: updateConv } = useUpdateConversation()
@@ -62,9 +63,29 @@ export default function AdminConversations() {
     ? isConfiguredWhatsappNumber(selectedConversation.phone, phoneWhatsapp)
     : false
 
+  const lastTypingSentRef = useRef<number>(0)
+  const sendTypingPing = useCallback((id: number) => {
+    const now = Date.now()
+    if (now - lastTypingSentRef.current < 2500) return
+    lastTypingSentRef.current = now
+    fetch(`${API_BASE}/api/conversations/${id}/typing`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ senderType: "admin", isTyping: true }),
+    }).catch(() => {})
+  }, [])
+
+  // Auto poll conversations list to keep online and typing states fresh
+  useEffect(() => {
+    const timer = setInterval(() => {
+      refetchConvs()
+    }, 3000)
+    return () => clearInterval(timer)
+  }, [refetchConvs])
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView()
-  }, [messages])
+  }, [messageList])
 
   useEffect(() => {
     const openId = Number(new URLSearchParams(window.location.search).get("open"))
@@ -80,8 +101,30 @@ export default function AdminConversations() {
   }, [activeConversations, conversations, selectedId])
 
   useEffect(() => {
+    if (selectedId) {
+      const token = localStorage.getItem("admin_token")
+      fetch(`${API_BASE}/api/conversations/${selectedId}/read`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      }).then(() => {
+        refetchConvs()
+      }).catch(() => {})
+    }
+  }, [selectedId, refetchConvs])
+
+  useEffect(() => {
     setSelectedPackageId(selectedConversation?.packageId ? String(selectedConversation.packageId) : "")
   }, [selectedConversation?.packageId, selectedId])
+
+  const handleReplyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setReply(e.target.value)
+    if (selectedId) {
+      sendTypingPing(selectedId)
+    }
+  }
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault()
@@ -217,7 +260,12 @@ export default function AdminConversations() {
                   className="w-full text-right p-4 pr-3"
                 >
                   <div className="flex justify-between items-start mb-1">
-                    <span className="font-bold text-gray-900">{conv.clientName}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-gray-900">{conv.clientName}</span>
+                      {(conv as any).isOnline && (
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="متصل الآن" />
+                      )}
+                    </div>
                     {conv.status === "open" && <span className="w-2 h-2 bg-blue-500 rounded-full mt-1" />}
                   </div>
                   <div className="mb-1 flex items-center gap-1 text-xs text-gray-500" dir="ltr">
@@ -264,35 +312,53 @@ export default function AdminConversations() {
             <>
               <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-white p-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary/10 text-primary rounded-full flex items-center justify-center">
-                    <User size={20} />
+                  <div className="w-11 h-11 bg-primary/10 text-primary rounded-2xl flex items-center justify-center shadow-xs">
+                    <User size={22} />
                   </div>
                   <div>
-                    <h3 className="font-bold">المحادثة #{selectedId}</h3>
-                    {selectedConversation?.phone && (
-                      <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500" dir="ltr">
-                        <span>{selectedConversation.phone}</span>
-                        {selectedIsWhatsapp && (
-                          <a
-                            href={whatsappHref(selectedConversation.phone)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-green-500 transition-colors hover:text-green-600"
-                            title="فتح محادثة واتساب"
-                            aria-label="فتح محادثة واتساب"
-                          >
-                            <FaWhatsapp size={16} />
-                          </a>
-                        )}
-                      </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-extrabold text-base text-gray-900">
+                        {selectedConversation?.clientName || `محادثة #${selectedId}`}
+                      </h3>
+                      {selectedConversation?.phone && (
+                        <a
+                          href={`tel:${selectedConversation.phone}`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                          title={`اتصال مباشر بالعميل: ${selectedConversation.phone}`}
+                        >
+                          <Phone size={13} className="animate-pulse" />
+                          <span dir="ltr">{selectedConversation.phone}</span>
+                        </a>
+                      )}
+                      {selectedConversation?.phone && (
+                        <a
+                          href={whatsappHref(selectedConversation.phone)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded-xl text-xs font-bold transition-all"
+                          title="فتح محادثة واتساب"
+                        >
+                          <FaWhatsapp size={14} className="text-green-600" />
+                          واتساب
+                        </a>
+                      )}
+                    </div>
+
+                    {selectedConversation?.packageName && (
+                      <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-primary">
+                        <Package size={12} />
+                        الباقة: {selectedConversation.packageName}
+                      </p>
                     )}
-                     {selectedConversation?.packageName && (
-                       <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-primary">
-                         <Package size={12} />
-                         الباقة: {selectedConversation.packageName}
-                       </p>
-                     )}
-                    <p className="text-xs text-green-600">متصل الآن</p>
+
+                    {(selectedConversation as any)?.isOnline ? (
+                      <p className="text-xs font-bold text-emerald-600 flex items-center gap-1.5 mt-1">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
+                        متصل الآن بالموقع {(selectedConversation as any)?.activePage ? `(يتصفح: ${(selectedConversation as any).activePage})` : ""}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-400 mt-1">غير متصل حالياً</p>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -313,7 +379,7 @@ export default function AdminConversations() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages?.map(msg => {
+                {messageList.map(msg => {
                   const isAdmin = msg.senderType === MessageSenderType.admin || msg.senderType === MessageSenderType.ai
                    const isStructured = msg.messageType === "package_form" || msg.messageType === "order_confirmation"
                    if (isStructured) {
@@ -372,6 +438,19 @@ export default function AdminConversations() {
                     </div>
                   )
                 })}
+                {Boolean((selectedConversation as any)?.isClientTyping) && (
+                  <div className="flex justify-start mb-2 animate-in fade-in slide-in-from-bottom-2">
+                    <div className="bg-gray-100 text-gray-700 rounded-2xl rounded-tr-none px-4 py-2 text-xs flex items-center gap-2 border border-gray-200 shadow-xs">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="font-bold text-gray-800">العميل يكتب الآن</span>
+                      <span className="inline-flex gap-1 items-center">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-500 animate-bounce" style={{ animationDelay: "300ms" }} />
+                      </span>
+                    </div>
+                  </div>
+                )}
                 <div ref={messagesEndRef} />
               </div>
 
@@ -405,7 +484,7 @@ export default function AdminConversations() {
               <form onSubmit={handleSend} className="flex gap-2 border-t bg-white p-4">
                 <Input
                   value={reply}
-                  onChange={e => setReply(e.target.value)}
+                  onChange={handleReplyChange}
                   placeholder="اكتب ردك هنا..."
                   className="flex-1 bg-gray-50 focus-visible:ring-primary"
                 />

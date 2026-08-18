@@ -12,12 +12,12 @@ description = "نسخة الأرشيف المرفوع بعد استبدال مل
 id = "M455l1c0gprcp62URuZhP"
 uri = "file://sabaik-update.zip"
 type = "unspecified"
-title = "تحديث Hostinger — sabaik-update.zip"
-description = "ملف التحديث الخفيف لرفع التغييرات فقط إلى Hostinger؛ لا يحتوي على data/ أو uploads/."
+title = "تحديث Hostinger الخفيف — من الأرشيف المرفق"
+description = "تحديث ملفات الكود والواجهة وPHP فقط من النسخة الجديدة، بدون data/ أو uploads/."
 
 [[outputs]]
 id = "e7Hwi4c_9VUpSkVoGq2Ul"
 uri = "file://cleanflow-services-hostinger.zip"
 type = "unspecified"
-title = "حزمة Hostinger الكاملة — النسخة الحالية"
-description = "حزمة Hostinger كاملة مبنية من آخر ملفات المشروع، وتشمل الواجهة وPHP وقاعدة البيانات المهيأة والصور المستخدمة."
+title = "حزمة Hostinger الكاملة — من الأرشيف المرفق"
+description = "حزمة كاملة مبنية بعد استبدال ملفات المشروع بمحتويات uploads_1787072722525.zip، وتشمل الواجهة وPHP والبيانات والصور المستخدمة."
