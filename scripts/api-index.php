@@ -671,7 +671,29 @@ try {
         exit;
     }
 
-    // 7. Push Public Key: GET /api/push/public-key
+    // 7. Notifications Delete: DELETE /api/admin/notifications/{id}
+    // Keep /notifications aliases for older frontend bundles as well.
+    if (preg_match('#^/(?:admin/)?notifications/(\d+)$#', $path, $m) && $method === 'DELETE') {
+        $id = (int)$m[1];
+        $stmt = $pdo->prepare("DELETE FROM notifications WHERE id = :id");
+        $stmt->execute([':id' => $id]);
+        if ($stmt->rowCount() === 0) {
+            http_response_code(404);
+            echo json_encode(['error' => 'الإشعار غير موجود'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        echo json_encode(['success' => true, 'id' => $id], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    // 8. Notifications Delete All: DELETE /api/admin/notifications
+    if (($path === '/admin/notifications' || $path === '/notifications') && $method === 'DELETE') {
+        $pdo->exec("DELETE FROM notifications");
+        echo json_encode(['success' => true], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    // 9. Push Public Key: GET /api/push/public-key
     if ($path === '/push/public-key' && $method === 'GET') {
         try {
             $stmt = $pdo->prepare("SELECT value FROM site_settings WHERE key = 'vapid_public_key' LIMIT 1");

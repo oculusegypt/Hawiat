@@ -26,5 +26,5 @@ description = "أرشيف البناء الكامل بعد إصلاح مسارا
 id = "RTo70OttJokFRCRKOlWig"
 uri = "file://hawiat-update-patch.zip"
 type = "unspecified"
-title = "hawiat-update-patch.zip"
-description = "حزمة تحديث Hostinger لإصلاح صفحة الطلبات؛ تحتوي على الواجهة الثابتة وPHP وSQLite وملفات التوجيه، ولا تحتاج إلى Node على الاستضافة."
+title = "hawiat-update-patch.zip — إصلاح حذف الإشعارات"
+description = "حزمة Hostinger محدثة تضيف حذف إشعار واحد وحذف جميع الإشعارات عبر PHP، مع الواجهة والملفات الثابتة وقاعدة SQLite، ولا تحتاج إلى Node على الاستضافة."
