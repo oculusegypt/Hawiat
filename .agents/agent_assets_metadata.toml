@@ -14,3 +14,10 @@ uri = "file://sabaik-update.zip"
 type = "unspecified"
 title = "تحديث Hostinger — sabaik-update.zip"
 description = "ملف التحديث الخفيف لرفع التغييرات فقط إلى Hostinger؛ لا يحتوي على data/ أو uploads/."
+
+[[outputs]]
+id = "e7Hwi4c_9VUpSkVoGq2Ul"
+uri = "file://cleanflow-services-hostinger.zip"
+type = "unspecified"
+title = "حزمة Hostinger الكاملة — النسخة الحالية"
+description = "حزمة Hostinger كاملة مبنية من آخر ملفات المشروع، وتشمل الواجهة وPHP وقاعدة البيانات المهيأة والصور المستخدمة."
