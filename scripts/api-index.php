@@ -244,6 +244,32 @@ try {
         return "-----BEGIN PUBLIC KEY-----\n" . chunk_split(base64_encode($der), 64, "\n") . "-----END PUBLIC KEY-----\n";
     }
 
+    /**
+     * Web Push uses HKDF-Extract and HKDF-Expand in two stages.
+     *
+     * PHP's hash_hkdf() does not accept a separate salt argument. Passing the
+     * Web Push auth secret or message salt as its fifth argument only coerces
+     * that value to the boolean `binary` flag, which produces invalid payloads
+     * even though the subscription itself was saved correctly.
+     */
+    function hkdfExtract(string $salt, string $inputKeyMaterial): string {
+        return hash_hmac('sha256', $inputKeyMaterial, $salt, true);
+    }
+
+    function hkdfExpand(string $pseudorandomKey, string $info, int $length): string {
+        $output = '';
+        $previous = '';
+        $counter = 1;
+
+        while (strlen($output) < $length) {
+            $previous = hash_hmac('sha256', $previous . $info . chr($counter), $pseudorandomKey, true);
+            $output .= $previous;
+            $counter++;
+        }
+
+        return substr($output, 0, $length);
+    }
+
     function sendWebPushNotification(array $subscription, array $payloadArray, string $vapidPublicKey, string $vapidPrivateKey, string $vapidSubject): bool {
         try {
             $endpoint = $subscription['endpoint'] ?? '';
@@ -272,9 +298,13 @@ try {
 
             $salt = random_bytes(16);
             $info = "WebPush: info\0" . $userPubKey . $localPubKey;
-            $prk = hash_hkdf('sha256', $sharedSecret, 32, $info, $userAuth);
-            $cek = hash_hkdf('sha256', $prk, 16, "Content-Encoding: aes128gcm\0", $salt);
-            $nonce = hash_hkdf('sha256', $prk, 12, "Content-Encoding: nonce\0", $salt);
+            // RFC 8291: authenticate the ECDH secret first, then derive the
+            // message key and nonce from the per-message salt.
+            $prkKey = hkdfExtract($userAuth, $sharedSecret);
+            $ikm = hkdfExpand($prkKey, $info, 32);
+            $prk = hkdfExtract($salt, $ikm);
+            $cek = hkdfExpand($prk, "Content-Encoding: aes128gcm\0", 16);
+            $nonce = hkdfExpand($prk, "Content-Encoding: nonce\0", 12);
 
             $paddedPayload = $payload . "\x02";
             $tag = '';

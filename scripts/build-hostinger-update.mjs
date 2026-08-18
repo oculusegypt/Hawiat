@@ -10,6 +10,7 @@
  *   sw.js         ← Service Worker لإظهار الإشعارات وفتح الرابط الصحيح
  *   notification-icon.png ← أيقونة إشعارات الهاتف
  *   api/index.php ← ملف PHP المحدَّث
+ *   .htaccess و api/.htaccess ← توجيه API وتمرير Authorization
  *
  * طريقة الرفع على Hostinger:
  *   1. استخرج الأرشيف
@@ -67,12 +68,24 @@ for (const publicFile of ["sw.js", "notification-icon.png"]) {
 }
 console.log("  ✅ assets/ و index.html وملفات الإشعارات");
 
-// ملف PHP
+// ملف PHP — نأخذ المصدر مباشرة حتى لا تُستخدم نسخة build_php قديمة
 copyFileSync(
-  join(ROOT, "build_php/api/index.php"),
+  join(ROOT, "scripts/api-index.php"),
   join(STAGING, "api/index.php")
 );
 console.log("  ✅ api/index.php");
+
+// ملفات Apache الضرورية لمسارات API وتمرير Authorization في Hostinger
+for (const htaccess of [
+  ["build_php/.htaccess", ".htaccess"],
+  ["build_php/api/.htaccess", "api/.htaccess"],
+]) {
+  const [source, destination] = htaccess;
+  if (existsSync(join(ROOT, source))) {
+    copyFileSync(join(ROOT, source), join(STAGING, destination));
+  }
+}
+console.log("  ✅ .htaccess و api/.htaccess");
 
 // تعليمات رفع بسيطة
 writeFileSync(join(STAGING, "UPLOAD_INSTRUCTIONS.txt"), [
@@ -84,7 +97,8 @@ writeFileSync(join(STAGING, "UPLOAD_INSTRUCTIONS.txt"), [
   "  • assets/       ← مجلد كامل",
   "  • index.html    ← ملف واحد",
   "  • sw.js و notification-icon.png ← ملفات إشعارات الهاتف",
-  "  • api/index.php ← ملف واحد",
+  "  • api/index.php و api/.htaccess ← ملفات API",
+  "  • .htaccess ← ملف التوجيه الرئيسي (استبدله إن كان لديك الإصدار القديم)",
   "",
   "⚠️  لا تلمس:",
   "  • data/sabaik.db   (قاعدة البيانات)",
@@ -108,6 +122,6 @@ const sizeKb = Math.round(
 );
 console.log(`\n${"═".repeat(60)}`);
 console.log(`✅ جاهز: sabaik-update.zip (${sizeKb} KB)`);
-console.log(`   يحتوي على: assets/ + index.html + sw.js + notification-icon.png + api/index.php`);
+console.log(`   يحتوي على: assets/ + index.html + sw.js + notification-icon.png + api/index.php + .htaccess`);
 console.log(`   لا يحتوي على: uploads/ ولا data/ (بياناتك بأمان ✔)`);
 console.log(`${"═".repeat(60)}\n`);

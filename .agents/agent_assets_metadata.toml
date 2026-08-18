@@ -21,3 +21,10 @@ uri = "file://cleanflow-services-hostinger.zip"
 type = "unspecified"
 title = "حزمة Hostinger الكاملة — من الأرشيف المرفق"
 description = "حزمة كاملة مبنية بعد استبدال ملفات المشروع بمحتويات uploads_1787072722525.zip، وتشمل الواجهة وPHP والبيانات والصور المستخدمة."
+
+[[outputs]]
+id = "RTo70OttJokFRCRKOlWig"
+uri = "file://hawiat-update-patch.zip"
+type = "unspecified"
+title = "Hawiat Hostinger Patch Update"
+description = "حزمة Patch بنفس البنية المطلوبة للرفع المباشر إلى public_html: assets و index.html و API وملفات التوجيه وقاعدة البيانات المحدثة وملفات إشعارات الهاتف."

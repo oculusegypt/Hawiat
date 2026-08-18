@@ -1,2 +1,3 @@
 - [Imported archive workflows](imported-archive-workflows.md) — imported artifact manifests may need a manually configured preview workflow after extraction.
 - [OpenAPI body schemas](api-zod-openapi-body-schema.md) — inline request bodies can collide in api-zod exports; use a named component schema.
+- [Hostinger patch delivery](hostinger-patch-notifications.md) — Hostinger patches must include the SQLite database and Web Push worker assets; PHP Web Push needs explicit HKDF extract/expand.
